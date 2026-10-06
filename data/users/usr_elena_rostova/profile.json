@@ -1,0 +1,72 @@
+{
+  "id": "usr_elena_rostova",
+  "full_name": "Elena Rostova",
+  "email": "elena.rostova@example.com",
+  "phone": "+1 (555) 048-9122",
+  "location": "New York, NY",
+  "headline": "Lead Product Manager — AI & Enterprise SaaS",
+  "industry": "Enterprise Software & Product Strategy",
+  "avatar_color": "#7c3aed",
+  "seniority_level": "Staff / Principal / Lead (8+ years)",
+  "years_of_experience": "9 years",
+  "summary": "Data-driven Lead Product Manager with 9+ years steering 0-to-1 enterprise B2B SaaS platforms and generative AI product roadmaps. Expert in user research, OKR execution, cross-functional leadership, and go-to-market strategies.",
+  "core_skills": [
+    "Product Management",
+    "AI Product Strategy",
+    "Roadmapping",
+    "User Research",
+    "Go-To-Market (GTM)",
+    "Cross-Functional Leadership",
+    "OKRs & KPIs",
+    "Data Analytics",
+    "SQL",
+    "Agile/Scrum"
+  ],
+  "experience_highlights": [
+    "Scaled AI-assisted SaaS workflow from zero to $8.5M ARR in 18 months with 120k active enterprise seats.",
+    "Spearheaded enterprise customer discovery across Fortune 500 accounts, achieving a 94% retention rate."
+  ],
+  "experience": [
+    {
+      "role": "Lead Product Manager",
+      "company": "Vanguard Cognitive Tech",
+      "start_date": "2021",
+      "end_date": "Present",
+      "location": "New York, NY (Hybrid)",
+      "bullet_points": [
+        "Defined 2-year product roadmap for generative AI assistant, resulting in 3.4x user adoption.",
+        "Led cross-functional team of 14 engineers, 3 designers, and data scientists across 3 sprints."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "M.B.A. in Technology Strategy",
+      "institution": "Columbia Business School",
+      "year": "2018"
+    },
+    {
+      "degree": "B.A. in Economics",
+      "institution": "New York University",
+      "year": "2015"
+    }
+  ],
+  "certifications": [
+    "Certified Scrum Product Owner (CSPO)",
+    "Pragmatic Institute Certified (PMC-III)"
+  ],
+  "target_role": "Lead Product Manager",
+  "target_roles": [
+    "Lead Product Manager",
+    "Principal Product Manager",
+    "Director of Product"
+  ],
+  "remote_pref": "Hybrid",
+  "min_salary": "$175,000",
+  "target_companies": "Notion, Figma, Slack, Stripe, Airtable, Miro",
+  "negative_keywords": "Contract, Offshore, Relocation Required",
+  "linkedin": "https://linkedin.com/in/elena-rostova-pm",
+  "github": "",
+  "portfolio": "https://elenarostova.product",
+  "resume_text": "Elena Rostova\nNew York, NY • +1 (555) 048-9122 • elena.rostova@example.com\nLead Product Manager — AI & Enterprise SaaS\nExperience: Lead Product Manager at Vanguard Cognitive Tech (2021-Present)."
+}

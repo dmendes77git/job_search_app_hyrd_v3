@@ -1,0 +1,16 @@
+services:
+  hyrd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hyrd:latest
+    container_name: hyrd-app
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - APIFY_API_TOKEN=${APIFY_API_TOKEN:-}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

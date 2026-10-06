@@ -1,0 +1,80 @@
+{
+  "id": "usr_alex_mercer",
+  "full_name": "Alex Mercer",
+  "email": "alex.mercer@example.com",
+  "phone": "+1 (555) 019-2834",
+  "location": "San Francisco, CA",
+  "headline": "Senior AI & Distributed Systems Engineer",
+  "industry": "Artificial Intelligence & Cloud Infrastructure",
+  "avatar_color": "#2563eb",
+  "seniority_level": "Senior (5+ years)",
+  "years_of_experience": "7 years",
+  "summary": "Senior AI & Distributed Systems Engineer with 7+ years building enterprise multi-agent swarms, RAG architectures, and high-throughput Python/FastAPI microservices. Specialized in Gemini API, LangChain, Kubernetes, and real-time inference optimization.",
+  "core_skills": [
+    "Python",
+    "FastAPI",
+    "Docker",
+    "Kubernetes",
+    "LLMs",
+    "RAG",
+    "LangChain",
+    "PostgreSQL",
+    "Google Cloud",
+    "Distributed Systems",
+    "CI/CD",
+    "Redis"
+  ],
+  "experience_highlights": [
+    "Architected enterprise multi-agent research pipelines handling 2.5M+ requests/month with 99.95% uptime.",
+    "Engineered hybrid RAG retrieval pipeline with Qdrant vector database, reducing document search latency by 45%."
+  ],
+  "experience": [
+    {
+      "role": "Lead AI Platform Engineer",
+      "company": "Apex Autonomous Labs",
+      "start_date": "2022",
+      "end_date": "Present",
+      "location": "San Francisco, CA (Remote)",
+      "bullet_points": [
+        "Designed scalable multi-agent AI pipeline using Python and LangChain, improving throughput by 65%.",
+        "Deployed containerized RAG service on Google Cloud Run and Kubernetes, handling 15k req/sec."
+      ]
+    },
+    {
+      "role": "Senior Software Engineer",
+      "company": "DataScale Systems",
+      "start_date": "2019",
+      "end_date": "2022",
+      "location": "San Francisco, CA",
+      "bullet_points": [
+        "Built distributed ETL pipelines processing 10TB+ daily telemetry with Python and PostgreSQL.",
+        "Reduced p99 API latency from 240ms to 45ms through asynchronous caching and query optimization."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "B.S. in Computer Science",
+      "institution": "University of California, Berkeley",
+      "year": "2019"
+    }
+  ],
+  "certifications": [
+    "Google Cloud Professional Machine Learning Engineer",
+    "CKA: Certified Kubernetes Administrator"
+  ],
+  "target_role": "Senior AI Software Engineer",
+  "target_roles": [
+    "Senior AI Software Engineer",
+    "Staff Machine Learning Engineer",
+    "Lead AI Infrastructure Engineer"
+  ],
+  "remote_pref": "Remote Only",
+  "min_salary": "$160,000",
+  "target_companies": "Linear, Stripe, Databricks, OpenAI, Anthropic, Figma",
+  "negative_keywords": "Clearance, Crypto, Staffing Agency, C2C, Unpaid",
+  "linkedin": "https://linkedin.com/in/alex-mercer-ai",
+  "github": "https://github.com/alex-mercer",
+  "portfolio": "https://alexmercer.dev",
+  "resume_text": "Alex Mercer\nSan Francisco, CA • +1 (555) 019-2834 • alex.mercer@example.com\nSenior AI & Distributed Systems Engineer\nSkills: Python, FastAPI, Docker, Kubernetes, LLMs, RAG, LangChain, PostgreSQL, GCP.\nLead AI Platform Engineer at Apex Autonomous Labs (2022-Present)."
+}

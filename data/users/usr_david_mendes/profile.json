@@ -1,0 +1,55 @@
+{
+  "full_name": "David Mendes",
+  "headline": "Staff AI Systems Architect",
+  "email": "david.mendes@example.com",
+  "phone": "+44 20 7946 0912",
+  "location": "London, UK / Remote",
+  "target_role": "Staff AI Systems Architect",
+  "target_roles": [
+    "Staff AI Architect",
+    "Principal Machine Learning Engineer",
+    "Head of AI Engineering"
+  ],
+  "seniority_level": "Staff / Principal (10+ years)",
+  "years_of_experience": 14,
+  "years_experience": "14 years",
+  "remote_pref": "Remote Only",
+  "min_salary": "$210,000",
+  "target_companies": "Google DeepMind, Anthropic, OpenAI, Meta AI, Mistral",
+  "negative_keywords": "Crypto, Web3, Legacy Maintenance, Unpaid",
+  "core_skills": [
+    "Python",
+    "Agentic AI Workflows",
+    "LLM Architecture",
+    "Distributed Systems",
+    "PyTorch",
+    "Kubernetes",
+    "System Design"
+  ],
+  "about": "Staff AI Architect with 14 years of experience designing and deploying scalable agentic AI systems, distributed LLM orchestration pipelines, and production machine learning infrastructure.",
+  "work_history": [
+    {
+      "role": "Staff AI Systems Architect",
+      "company": "Cognitive Scale Labs",
+      "dates": "2021 — Present",
+      "bullets": [
+        "Architected multi-agent LLM reasoning pipeline processing 45M tokens daily with 99.98% reliability.",
+        "Engineered low-latency tool-use execution layer cutting model inference response time by 42%."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "M.Sc. in Computer Science (Artificial Intelligence)",
+      "institution": "Imperial College London",
+      "year": "2012"
+    }
+  ],
+  "certifications": [
+    "Google Cloud Certified Professional Machine Learning Engineer"
+  ],
+  "linkedin": "https://linkedin.com/in/david-mendes-ai",
+  "github": "https://github.com/dmendes77git",
+  "avatar_color": "#0284c7",
+  "id": "usr_david_mendes"
+}
