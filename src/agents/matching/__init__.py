@@ -8,6 +8,7 @@ from .scoring import (
     check_job_country_match,
     determine_work_mode,
     calculate_semantic_fit,
+    evaluate_role_match,
 )
 
 __all__ = [
@@ -16,4 +17,6 @@ __all__ = [
     "check_job_country_match",
     "determine_work_mode",
     "calculate_semantic_fit",
+    "evaluate_role_match",
 ]
+

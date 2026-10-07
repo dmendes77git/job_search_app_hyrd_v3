@@ -360,8 +360,24 @@ class TestJobScraperUtils(unittest.TestCase):
         self.assertIn("Python", matched_skills)
         self.assertGreater(len(reasons), 0)
 
+    def test_evaluate_role_match(self):
+        from src.agents.matching.scoring import evaluate_role_match
+        profile = {
+            "headline": "Senior AI / Agentic Systems Engineer",
+            "core_skills": ["Google Antigravity SDK", "Gemini API", "Python", "RAG"],
+            "years_of_experience": "6+ years",
+        }
+        res1 = evaluate_role_match("Senior AI / Agentic Systems Engineer", profile)
+        self.assertGreaterEqual(res1["score"], 90)
+        self.assertEqual(res1["match_label"], "Exceptional Fit")
+        self.assertIn("rationale", res1)
+
+        res2 = evaluate_role_match("Junior Marketing Intern", profile)
+        self.assertLess(res2["score"], 85)
+
 
 class TestCompanyIntelligenceAgent(unittest.TestCase):
+
     """Verifies executive company dossier generation and fallback."""
 
     def setUp(self):

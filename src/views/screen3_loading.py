@@ -28,8 +28,12 @@ def render_screen3() -> None:
         profile["target_companies"] = st.session_state["target_companies"]
     if st.session_state.get("negative_keywords"):
         profile["negative_keywords"] = st.session_state["negative_keywords"]
+    if st.session_state.get("selected_recommended_roles"):
+        profile["selected_roles"] = st.session_state["selected_recommended_roles"]
+        profile["target_roles"] = st.session_state["selected_recommended_roles"]
     if st.session_state.get("apify_api_token"):
         profile["apify_api_token"] = st.session_state["apify_api_token"]
+
 
     st.markdown("### ⚡ Screen 3: Concurrent Async Search & Multi-Source Scraping")
     st.markdown(

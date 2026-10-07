@@ -108,13 +108,19 @@ def search_live_jobs_pipeline(
 
     countries_display = ", ".join([c.title() for c in target_countries]) if target_countries else "Global / Worldwide"
 
-    dispatch_desc = f"Searching roles for: '{target_role}' | Region: {countries_display} | Mode: {profile.get('work_mode', 'Remote Only')}"
+    selected_roles = profile.get("selected_roles") or profile.get("target_roles") or []
+    role_display = f"'{target_role}'"
+    if selected_roles and len(selected_roles) > 1:
+        role_display = f"{len(selected_roles)} curated roles ({', '.join(selected_roles[:2])}...)"
+
+    dispatch_desc = f"Searching roles for: {role_display} | Region: {countries_display} | Mode: {profile.get('work_mode', 'Remote Only')}"
     if custom_companies:
         dispatch_desc += f" | Dream Companies: {', '.join(custom_companies)}"
     if negative_keywords:
         dispatch_desc += f" | Exclusions: {', '.join(negative_keywords)}"
 
     log(5, "JobCrawler-Dispatcher", dispatch_desc)
+
 
     # Configure the concurrent scraper tasks across all 14 channels
     tasks = [

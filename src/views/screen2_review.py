@@ -1,12 +1,14 @@
 """
 Screen 2: Profile Review Screen.
 Displays structured candidate profile extracted by the Gemini Resume Parsing Agent.
+Empowers candidates to review and curate Recommended Roles with expert recruiter match scores.
 """
 
 import textwrap
 import streamlit as st
 from src.state import SCREEN_INPUT, SCREEN_SEARCHING, go_to_screen
 from src.mock_data import SAMPLE_PARSED_PROFILE
+from src.agents.matching.scoring import evaluate_role_match
 
 
 def render_screen2() -> None:
@@ -83,6 +85,58 @@ def render_screen2() -> None:
     col1, col2 = st.columns(2, gap="large")
 
     with col1:
+        st.markdown("#### 🎯 Recommended Roles")
+        st.caption("Select the specific roles you want Hyrd's autonomous crawlers to target:")
+
+        target_roles = st.session_state.get("target_job_queries") or profile.get("target_roles", [target_role])
+
+        # Ensure default selected roles in session state
+        if "selected_recommended_roles" not in st.session_state or not st.session_state.selected_recommended_roles:
+            st.session_state.selected_recommended_roles = list(target_roles)
+
+        active_selected_roles = []
+
+        for idx, role in enumerate(target_roles):
+            eval_data = evaluate_role_match(role, profile)
+            score = eval_data["score"]
+            badge_bg = eval_data["badge_bg"]
+            badge_color = eval_data["badge_color"]
+            badge_border = eval_data["badge_border"]
+            match_label = eval_data["match_label"]
+            rationale = eval_data["rationale"]
+
+            # Role row with checkbox and match score badge
+            r_col1, r_col2 = st.columns([3.2, 1.3])
+            with r_col1:
+                is_checked = st.checkbox(
+                    f"**{role}**",
+                    value=(role in st.session_state.selected_recommended_roles),
+                    key=f"chk_rec_role_{idx}_{abs(hash(role)) % 100000}",
+                )
+                if is_checked:
+                    active_selected_roles.append(role)
+            with r_col2:
+                st.markdown(
+                    f"<div style='text-align: right; padding-top: 3px;'>"
+                    f"<span style='background: {badge_bg}; color: {badge_color}; border: 1px solid {badge_border}; "
+                    f"padding: 3px 9px; border-radius: 12px; font-size: 0.78rem; font-weight: 700; white-space: nowrap;'>"
+                    f"🎯 {score}% Match</span></div>",
+                    unsafe_allow_html=True,
+                )
+
+            # Recruiter evaluation rationale
+            st.markdown(
+                f"<div style='font-size: 0.82rem; color: #64748b; margin-left: 1.8rem; margin-top: -0.35rem; margin-bottom: 0.75rem;'>"
+                f"💡 <strong style='color: #475569;'>Recruiter Analysis:</strong> {rationale} "
+                f"<span style='color: {badge_color}; font-weight: 600;'>({match_label})</span></div>",
+                unsafe_allow_html=True,
+            )
+
+        if not active_selected_roles:
+            st.warning("⚠️ Please select at least one Recommended Role to include in the autonomous search.")
+
+        st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+
         st.markdown("#### 🛠️ Core Competencies & Skills")
         skills = st.session_state.get("primary_skills") or profile.get("core_skills", [])
         if skills:
@@ -98,14 +152,23 @@ def render_screen2() -> None:
         else:
             st.info("No specific skills extracted.")
 
-        st.markdown("#### 🎯 Target Job Queries")
-        target_roles = st.session_state.get("target_job_queries") or profile.get("target_roles", [target_role])
-        for role in target_roles:
-            st.markdown(f"- **{role}**")
+    with col2:
+        st.markdown("#### 🌟 Key Experience Highlights")
+        highlights = profile.get("experience_highlights", [])
+        for item in highlights:
+            st.markdown(
+                f"""
+                <div style="background: #fafafa; border-left: 3px solid #2563eb; padding: 0.6rem 0.85rem; margin-bottom: 0.5rem; font-size: 0.9rem; color: #27272a; border-radius: 0 6px 6px 0;">
+                    {item}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         target_companies = st.session_state.get("target_companies", "")
         negative_keywords = st.session_state.get("negative_keywords", "")
         if target_companies or negative_keywords:
+            st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
             st.markdown("#### 🎯 Target Employers & Exclusions")
             if target_companies:
                 comps = [c.strip() for c in target_companies.split(",") if c.strip()]
@@ -126,19 +189,6 @@ def render_screen2() -> None:
                 ])
                 st.markdown(f"<div style='margin-bottom: 0.5rem;'><strong>Exclusion Keywords:</strong><br>{negs_badges}</div>", unsafe_allow_html=True)
 
-    with col2:
-        st.markdown("#### 🌟 Key Experience Highlights")
-        highlights = profile.get("experience_highlights", [])
-        for item in highlights:
-            st.markdown(
-                f"""
-                <div style="background: #fafafa; border-left: 3px solid #2563eb; padding: 0.6rem 0.85rem; margin-bottom: 0.5rem; font-size: 0.9rem; color: #27272a; border-radius: 0 6px 6px 0;">
-                    {item}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
     st.markdown("---")
 
     # Navigation buttons
@@ -148,9 +198,17 @@ def render_screen2() -> None:
             go_to_screen(SCREEN_INPUT)
 
     with nav_col3:
-        if st.button("🚀 Confirm & Launch Agentic Search", type="primary", use_container_width=True):
-            from src.utils.user_manager import flush_session_to_user_workspace
-            flush_session_to_user_workspace()
-            st.session_state.scrape_progress = 0
-            st.session_state.scrape_completed = False
-            go_to_screen(SCREEN_SEARCHING)
+        confirm_btn = st.button("🚀 Confirm & Launch Agentic Search", type="primary", use_container_width=True)
+        if confirm_btn:
+            if not active_selected_roles:
+                st.error("⚠️ Please select at least one Recommended Role to proceed with the search.")
+            else:
+                st.session_state.selected_recommended_roles = active_selected_roles
+                st.session_state.target_job_queries = active_selected_roles
+                st.session_state.target_role = active_selected_roles[0]
+
+                from src.utils.user_manager import flush_session_to_user_workspace
+                flush_session_to_user_workspace()
+                st.session_state.scrape_progress = 0
+                st.session_state.scrape_completed = False
+                go_to_screen(SCREEN_SEARCHING)

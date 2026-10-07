@@ -160,13 +160,19 @@ def calculate_semantic_fit(
 
     score = 65.0  # Base calibration score
 
-    # 1. Title & Role Token Alignment
+    # 1. Title & Role Token Alignment (covering primary headline + user-selected recommended roles)
     role_tokens = [t for t in re.split(r"[\s/,-]+", target_role) if len(t) > 2]
+    selected_roles = profile.get("selected_roles") or []
+    for r in selected_roles:
+        role_tokens.extend([t for t in re.split(r"[\s/,-]+", r.lower()) if len(t) > 2])
+    role_tokens = list(dict.fromkeys(role_tokens))
+
     matched_role_tokens = [t for t in role_tokens if t in job_title]
     if matched_role_tokens:
         score += min(24, len(matched_role_tokens) * 8)
     elif any(t in job_text for t in role_tokens):
         score += 8
+
 
     # Common seniority & responsibility token alignment
     for st in _SENIORITY_TOKENS:
@@ -208,3 +214,142 @@ def calculate_semantic_fit(
 
     final_score = int(min(98, max(72, round(score))))
     return final_score, matched_skills, reasons[:3], mode_label
+
+
+def evaluate_role_match(
+    role_title: str,
+    profile: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Expert Recruiter Role Match Evaluation.
+    Evaluates how well the candidate profile, experience highlights, seniority,
+    and core competencies align with a proposed recommended job role.
+    
+    Returns:
+      {
+        "score": int,                  # 75 - 98
+        "match_label": str,            # "Exceptional Fit", "Strong Match", etc.
+        "badge_color": str,            # Hex color for text
+        "badge_bg": str,               # Hex background
+        "badge_border": str,           # Hex border
+        "rationale": str,              # Recruiter rationale
+        "matched_skills": List[str],   # Overlapping skills
+      }
+    """
+    if not role_title:
+        return {
+            "score": 75,
+            "match_label": "General Fit",
+            "badge_color": "#475569",
+            "badge_bg": "#f1f5f9",
+            "badge_border": "#cbd5e1",
+            "rationale": "General alignment with candidate career profile.",
+            "matched_skills": [],
+        }
+
+    cand_headline = (profile.get("headline") or profile.get("target_role") or "Professional").lower()
+    core_skills = profile.get("core_skills") or []
+    summary = (profile.get("summary") or "").lower()
+    years_exp = (profile.get("years_of_experience") or profile.get("experience_level") or "").lower()
+
+    role_clean = role_title.strip()
+    role_lower = role_clean.lower()
+
+    score = 75.0
+
+    # 1. Headline / Title Similarity
+    cand_tokens = [t for t in re.split(r"[\s/,-]+", cand_headline) if len(t) > 2]
+    role_tokens = [t for t in re.split(r"[\s/,-]+", role_lower) if len(t) > 2]
+
+    # Exact or near-exact match
+    if cand_headline in role_lower or role_lower in cand_headline:
+        score += 12.0
+    else:
+        shared_tokens = [t for t in role_tokens if t in cand_tokens]
+        if shared_tokens:
+            score += min(10.0, len(shared_tokens) * 3.5)
+
+    # Domain keyword alignment (AI, Data, Eng, Product, Cloud, etc.)
+    domains = [
+        ("ai", ["ai", "agent", "agentic", "llm", "machine learning", "ml", "nlp", "deep learning", "prompt"]),
+        ("software", ["software", "engineer", "developer", "backend", "frontend", "full stack", "fullstack", "platform", "systems", "architect"]),
+        ("data", ["data", "analytics", "database", "sql", "pipeline", "etl", "bi"]),
+        ("cloud", ["cloud", "devops", "sre", "infrastructure", "kubernetes", "aws", "gcp", "azure"]),
+        ("product", ["product", "roadmap", "strategy", "scrum", "agile"]),
+    ]
+    for _, d_kws in domains:
+        cand_has = any(k in cand_headline or k in summary for k in d_kws)
+        role_has = any(k in role_lower for k in d_kws)
+        if cand_has and role_has:
+            score += 3.0
+            break
+
+    # 2. Seniority Alignment
+    role_seniority = [st for st in _SENIORITY_TOKENS if st in role_lower]
+    cand_seniority = [st for st in _SENIORITY_TOKENS if st in cand_headline or st in years_exp]
+
+    if role_seniority and cand_seniority:
+        if any(rs in cand_seniority for rs in role_seniority):
+            score += 4.0
+        elif ("staff" in role_seniority or "lead" in role_seniority or "principal" in role_seniority) and "senior" in cand_seniority:
+            score += 3.5  # Natural senior advancement
+        elif "senior" in role_seniority and any(s in cand_seniority for s in ["lead", "staff", "principal"]):
+            score += 3.5
+        elif "junior" in role_seniority and any(s in cand_seniority for s in ["senior", "lead", "staff", "manager"]):
+            score -= 4.0  # Overqualified
+    elif "senior" in role_lower and any(s in years_exp for s in ["5+", "6+", "7+", "8+", "10+"]):
+        score += 3.0
+
+    # 3. Core Skills Overlap
+    matched_skills = []
+    text_corpus = f"{role_lower} {' '.join(role_tokens)}"
+    for skill in core_skills:
+        skill_term = skill.split("/")[0].split("(")[0].strip().lower()
+        if len(skill_term) > 2 and (skill_term in text_corpus or any(t in skill_term for t in role_tokens)):
+            matched_skills.append(skill)
+            score += 2.5
+
+    # If no specific skill matched by token, find top relevant skills from profile
+    if not matched_skills and core_skills:
+        matched_skills = core_skills[:2]
+
+    final_score = int(min(98, max(75, round(score))))
+
+    # Recruiter Rationale & Badge styling
+    skills_sample = ", ".join(matched_skills[:2]) if matched_skills else "technical competencies"
+
+    if final_score >= 93:
+        match_label = "Exceptional Fit"
+        badge_color = "#166534"
+        badge_bg = "#f0fdf4"
+        badge_border = "#bbf7d0"
+        rationale = f"Direct alignment with candidate's specialized expertise in {skills_sample} and senior track record."
+    elif final_score >= 86:
+        match_label = "Strong Match"
+        badge_color = "#1e40af"
+        badge_bg = "#eff6ff"
+        badge_border = "#bfdbfe"
+        rationale = f"Strong strategic fit leveraging candidate's core background in {skills_sample}."
+    elif final_score >= 80:
+        match_label = "High Potential"
+        badge_color = "#854d0e"
+        badge_bg = "#fefce8"
+        badge_border = "#fde68a"
+        rationale = f"High-growth role complementing candidate's demonstrated background in {skills_sample}."
+    else:
+        match_label = "Adjacent Match"
+        badge_color = "#334155"
+        badge_bg = "#f1f5f9"
+        badge_border = "#cbd5e1"
+        rationale = f"Transferable domain alignment with candidate's problem-solving background."
+
+    return {
+        "score": final_score,
+        "match_label": match_label,
+        "badge_color": badge_color,
+        "badge_bg": badge_bg,
+        "badge_border": badge_border,
+        "rationale": rationale,
+        "matched_skills": matched_skills,
+    }
+
