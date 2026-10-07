@@ -196,23 +196,35 @@ Click **"🤖 Parse Resume with Agent & Review Profile →"** to proceed.
 
 ## 🔍 Screen 2: Profile Review & Competency Calibration
 
-Screen 2 presents the structured output extracted by the AI agent before initiating the live web crawl:
+Screen 2 presents the structured output extracted by the AI agent before initiating the live web crawl, organized in an ergonomic 2-column layout:
 
 1. **Executive Candidate Card**:
    - Verified Candidate Name, Classified Seniority Tier, and Target Role.
    - Comprehensive Professional Summary synthesizing years of experience, core domains, and leadership achievements.
-2. **Core Competencies & Skills Grid**:
-   - Visual badges showing technical proficiencies, frameworks, methodologies, and leadership skills.
-3. **Dispatched Search Queries**:
-   - Preview of the query strings that will be dispatched to the 14 scraping sources.
-4. **Target Employers & Exclusion Filters (v2 New)**:
-   - Green badges for designated Target ATS Companies.
-   - Red badges for active Exclusion Keywords.
-5. **Key Experience Highlights**:
-   - Quantifiable achievements and metrics extracted from your career history.
-6. **Navigation**:
+
+2. **Left Column — Recommended Roles & Core Competencies**:
+   - **Recommended Roles**: Prioritized target role queries extracted from your profile and industry demand.
+   - **Selection Checkboxes**: Check or uncheck individual recommended roles so the agentic crawler targets only the exact queries you desire.
+   - **Role Match Score (0–100%)**: Evaluates how well your profile and experience align with each proposed position.
+   - **Dynamic Qualitative Tiers**: Visual badges formatted alongside the match score:
+     - `🟢 Exceptional Fit (90-100%)`
+     - `🔵 Strong Match (80-89%)`
+     - `🟡 High Potential (70-79%)`
+   - **Recruiter Analysis Pop-up Window**: Clicking **"Recruiter Analysis"** opens an interactive modal with:
+     - Recruiter evaluation overview detailing profile alignment.
+     - **100% Match Gap Analysis**: Specific actionable recommendations on:
+       - ⚡ **Skills to Acquire / Deepen**: Frameworks or technical proficiencies to master.
+       - 📈 **Experience to Emphasize**: Project scale, team leadership, or metrics to highlight.
+       - 📜 **Certifications & Credentials**: High-impact industry certifications to earn.
+   - **Core Competencies & Skills**: Positioned directly below Recommended Roles, showing technical proficiencies, frameworks, methodologies, and leadership skills.
+
+3. **Right Column — Experience Highlights & Filters**:
+   - **Key Experience Highlights**: Quantifiable achievements and metrics extracted from your career history.
+   - **Target Employers & Exclusion Filters**: Positioned below Experience Highlights with green badges for active Target ATS Companies and red badges for negative Exclusion Keywords.
+
+4. **Navigation**:
    - **← Back to Edit Input**: Return to Screen 1 to make changes.
-   - **🚀 Confirm & Launch Agentic Search**: Triggers the concurrent async scraping and matching pipeline.
+   - **🚀 Confirm & Launch Agentic Search**: Triggers the concurrent async scraping and matching pipeline for the selected recommended roles.
 
 ---
 
@@ -276,18 +288,23 @@ Screen 4 displays your ranked opportunities with filtering tools and application
 - **Minimum Fit Score Slider**: Adjust threshold (e.g., 75% to 95%).
 - **Work Mode Filter**: Toggle between *All*, *Remote Only*, *Hybrid*, or *On-site*.
 
-### 3. Job Badges & Target Employer Indicators (v2 New)
+### 3. Job Badges & Freshness Indicators
 - **⭐ Target Dream Company**: Highlighted green badge identifying positions from companies specified in your custom target employer list.
 - **Network Source Badge**: Visual badge distinguishing source origins (LinkedIn, Ashby, Greenhouse, Lever, SmartRecruiters, JobSpy, etc.).
+- **📅 Days Since Posted Indicator**: Positioned directly below `📍 Location:`, displaying the numeric elapsed days since the position was posted, accompanied by color-coded freshness badges:
+  - `🔥 New (<= 3 days)`: Just published opportunities.
+  - `⏱️ Recent (4–14 days)`: Actively recruiting roles within the standard hiring window.
+  - `📅 Active (> 14 days)`: Standing opportunities or extended requisition searches.
+  - Normalizes heterogeneous source formats including ISO timestamps (`2026-10-02`), relative durations (*3 days ago, 2 weeks ago, 1 month ago*), and ATS active feeds (*Active on ZipRecruiter, Active on Ashby*).
 
-### 4. Salary Evaluator & Market Benchmarking
-Every job card features an automated salary assessment:
-- **Numerical Salary Score (0–100)**: Evaluates the proposed compensation against candidate seniority and industry standards.
+### 4. Geographic Salary Evaluator & Market Benchmarking
+Every job card features an automated salary assessment calibrated to the candidate's **Target Location & Countries** defined in Screen 1:
+- **Numerical Salary Score (0–100)**: Evaluates proposed compensation against candidate seniority and regional purchasing power standards (US, UK/Europe, Canada, Worldwide Remote, APAC, LATAM, etc.).
 - **Market Benchmark Rank**:
-  - `🟢 Above Market`: Exceeds prevailing industry baselines.
-  - `🔵 Within Market Standard`: Aligns with standard compensation bands.
+  - `🟢 Above Market`: Exceeds prevailing geographic industry baselines.
+  - `🔵 Within Market Standard`: Aligns with standard compensation bands for the region.
   - `🟡 Below Market`: Below typical market benchmarks.
-- Clean typography matching standard UI text styles.
+- **Regional Location Badge**: Explicit badge displaying which market benchmark was applied (e.g. `📍 London / UK Benchmark`, `📍 San Francisco Benchmark`, `📍 Remote Benchmark`).
 
 ### 4. The 4 Agentic Power Tools on Every Job Card
 Each job card provides a 2x2 action button grid:

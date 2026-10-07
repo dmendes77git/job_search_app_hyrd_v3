@@ -9,12 +9,21 @@ An end-to-end, multi-agent autonomous job search, resume customization, company 
 
 ---
 
-## 🚀 Version 4 Roadmap & Foundation (v4.0.0-dev)
+## 🚀 Version 4 Milestones (v4.0.0)
 
+- **🎯 Screen 2: Recommended Roles & Recruiter Gap Analysis**:
+  - **Dynamic Role Match Scoring**: Evaluates candidate profile against each recommended role with an expert recruiter score (0–100%) and dynamic qualitative tier badges (*Exceptional Fit*, *Strong Match*, *High Potential*).
+  - **Interactive Recruiter Analysis Modal**: Comprehensive recruiter evaluation pop-up revealing candidate strengths and a detailed **100% Match Gap Analysis** outlining exact skills to acquire, experience to emphasize, and certifications to earn.
+  - **Selective Role Search Checkboxes**: Candidates can selectively check or uncheck individual Recommended Roles to fine-tune exactly which search vectors are crawled.
+  - **Ergonomic 2-Column Review**: Balanced layout positioning Target Employers & Exclusions in the right column and Core Competencies directly below Recommended Roles.
+- **📍 Screen 4: Geographic Salary Calibration & Freshness Intelligence**:
+  - **Target Location & Countries Compensation Calibration**: Salary Score and Market Benchmark Rank are dynamically calibrated against the candidate's designated geographic market (e.g. US, UK/Europe, Canada, Remote, APAC, LATAM, Middle East) with dynamic location badges.
+  - **"Days Since Posted" Freshness Indicator**: Positioned directly after `📍 Location:` on every job card with numeric days count and color-coded tier badges (`🔥 New (<= 3 days)`, `⏱️ Recent (4-14 days)`, `📅 Active (> 14 days)`).
+  - **Heterogeneous Date Engine (`date_utils.py`)**: Seamlessly normalizes ISO timestamps, relative durations (*days, weeks, months*), and live ATS feed active statuses.
 - **🏛️ High-Throughput Modular Architecture**: Complete decoupling of scrapers (`src/agents/scrapers/`), semantic matching (`src/agents/matching/`), and UI dialogs (`src/components/dialogs/`).
 - **⚡ Unified Gemini Gateway (`src/utils/gemini_client.py`)**: Thread-safe client pooling, dynamic multi-tier fallback routing, and exponential backoff retry.
 - **🏎️ Sub-Second In-Memory Caching & Pre-Compiled Patterns**: 50+ pre-compiled regex patterns and `@lru_cache` accelerated salary benchmarking and geo-matching.
-- **🛡️ 100% Zero-Regression Test Suite (`tests/`)**: Automated baseline unit and integration test coverage across all subsystems.
+- **🛡️ 100% Zero-Regression Test Suite (`tests/`)**: Automated baseline unit and integration test coverage across all subsystems with 37/37 passing test suites.
 
 ---
 
@@ -95,14 +104,18 @@ The platform is organized as a modular 6-screen deterministic state machine gove
    - Location, Work Mode (*Remote Only, Hybrid, On-site, Open to All*), and Minimum Salary preferences.
    - **Target Dream Companies**: Optional comma-separated list of priority employers.
    - **Negative Keywords**: Optional comma-separated exclusion keywords.
-2. **Screen 2: Profile Review (`src/views/screen2_review.py`)**
+2. **Screen 2: Profile Review & Role Calibration (`src/views/screen2_review.py`)**
    - Synthesized candidate summary, verified competencies, experience highlights, target ATS employers, and exclusion filters.
+   - **Recommended Roles**: Dynamically classified roles with recruiter **Role Match Scores** (0-100%) and qualitative tier badges (*Exceptional Fit*, *Strong Match*, *High Potential*).
+   - **Recruiter Analysis & 100% Match Gap Analysis Modal**: Explains fit rationale and provides step-by-step guidance on skills, experience, and certifications needed to hit 100% match.
+   - **Selective Search Checkboxes**: Check or uncheck recommended roles to control which queries are crawled.
 3. **Screen 3: Concurrent Multi-Source Scraping Stream (`src/views/screen3_loading.py`)**
    - Real-time animated telemetry tracking concurrent crawlers across **14 live job sources** executed in parallel.
    - Profile-driven semantic matching, exclusion rejection, and deduplication.
 4. **Screen 4: Job Dashboard (`src/views/screen4_dashboard.py`)**
    - Ranked job opportunities with calibrated Match Score badges and **⭐ Target Dream Company** indicators.
-   - **Salary Evaluator**: Numerical score (0-100) and market rank (*Above Market*, *Within Market Standard*, *Below Market*).
+   - **Days Since Posted Indicator**: Positioned right after Location with elapsed day count and freshness tier badges (`🔥 New`, `⏱️ Recent`, `📅 Active`).
+   - **Geographic Salary Evaluator**: Numerical score (0-100) and market rank calibrated to the candidate's designated **Target Location & Countries** from Screen 1.
    - **The 4 Agentic Power Tools on Every Job Card**:
      - 📄 **Tailored CV (ATS-Optimized)**: Custom CV tailored for the specific employer with an interactive ATS Compatibility Scorecard, 5-point parser audit, keyword density metrics, and ATS-certified Word (`.docx`) download.
      - ✉️ **Tailored Cover Letter (ATS-Aligned)**: Targeted cover letter featuring an explicit Requisition Match line and keyword mirroring with text download.
@@ -139,8 +152,8 @@ The platform is organized as a modular 6-screen deterministic state machine gove
 
 ### 1. Clone & Setup
 ```bash
-git clone https://github.com/dmendes77git/agentic-ai-job-search-v2.git
-cd agentic-ai-job-search-v2
+git clone https://github.com/dmendes77git/agentic-ai-job-search-v4.git
+cd agentic-ai-job-search-v4
 
 # Create and activate virtual environment (Windows PowerShell)
 python -m venv venv
