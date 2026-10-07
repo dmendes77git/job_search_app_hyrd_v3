@@ -343,6 +343,27 @@ def evaluate_role_match(
         badge_border = "#cbd5e1"
         rationale = f"Transferable domain alignment with candidate's problem-solving background."
 
+    # Seniority assessment
+    if role_seniority and cand_seniority:
+        seniority_assessment = f"Direct alignment between candidate experience ({', '.join(cand_seniority).title()}) and target role level ({', '.join(role_seniority).title()})."
+    elif role_seniority:
+        seniority_assessment = f"Target role calls for {', '.join(role_seniority).title()} scope, matching candidate's career progression and demonstrated impact."
+    else:
+        seniority_assessment = "Leveling and scope are well-balanced with candidate's professional background."
+
+    # Key strengths & recommendations
+    primary_skills_text = ", ".join(matched_skills[:3]) if matched_skills else "core competencies"
+    strengths = [
+        f"Demonstrated domain depth in {primary_skills_text}.",
+        f"Career track record strongly aligns with {role_clean} expectations.",
+        "Demonstrated technical capability to deliver high-impact results autonomously.",
+    ]
+    recommendations = [
+        f"Feature specific case studies and quantifiable impact in {matched_skills[0] if matched_skills else 'core domain'} on your CV.",
+        f"Emphasize architectural decision-making and cross-functional leadership relevant to {role_clean}.",
+        "Customize screening elevator pitch to highlight alignment with target company scale and engineering challenges.",
+    ]
+
     return {
         "score": final_score,
         "match_label": match_label,
@@ -351,5 +372,8 @@ def evaluate_role_match(
         "badge_border": badge_border,
         "rationale": rationale,
         "matched_skills": matched_skills,
+        "seniority_assessment": seniority_assessment,
+        "strengths": strengths,
+        "recommendations": recommendations,
     }
 

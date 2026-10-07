@@ -371,9 +371,16 @@ class TestJobScraperUtils(unittest.TestCase):
         self.assertGreaterEqual(res1["score"], 90)
         self.assertEqual(res1["match_label"], "Exceptional Fit")
         self.assertIn("rationale", res1)
+        self.assertIn("seniority_assessment", res1)
+        self.assertGreater(len(res1["strengths"]), 0)
+        self.assertGreater(len(res1["recommendations"]), 0)
 
         res2 = evaluate_role_match("Junior Marketing Intern", profile)
         self.assertLess(res2["score"], 85)
+
+        # Verify screen 2 dialog function export
+        from src.views.screen2_review import show_recruiter_analysis_dialog
+        self.assertTrue(callable(show_recruiter_analysis_dialog))
 
 
 class TestCompanyIntelligenceAgent(unittest.TestCase):

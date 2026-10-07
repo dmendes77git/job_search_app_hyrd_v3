@@ -11,6 +11,71 @@ from src.mock_data import SAMPLE_PARSED_PROFILE
 from src.agents.matching.scoring import evaluate_role_match
 
 
+@st.dialog("📋 Recruiter Role Fit Analysis", width="medium")
+def show_recruiter_analysis_dialog(role: str, eval_data: dict, candidate_name: str) -> None:
+    """Pop-up modal presenting expert recruiter match analysis and recommendations."""
+    score = eval_data.get("score", 85)
+    match_label = eval_data.get("match_label", "Strong Match")
+    badge_bg = eval_data.get("badge_bg", "#eff6ff")
+    badge_color = eval_data.get("badge_color", "#1e40af")
+    badge_border = eval_data.get("badge_border", "#bfdbfe")
+    rationale = eval_data.get("rationale", "")
+    matched_skills = eval_data.get("matched_skills", [])
+    seniority = eval_data.get("seniority_assessment", "Aligned with professional trajectory.")
+    strengths = eval_data.get("strengths", [])
+    recommendations = eval_data.get("recommendations", [])
+
+    st.markdown(f"### 🎯 {role}")
+    st.caption(f"Candidate Evaluation for **{candidate_name}**")
+
+    # Header Card with Score & Tier in the same pill badge format
+    st.markdown(
+        f"""
+        <div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.85rem 1.1rem; margin: 0.6rem 0 1rem 0; display: flex; align-items: center; justify-content: space-between;'>
+            <div>
+                <div style='font-size: 0.8rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;'>Fit Assessment</div>
+                <div style='font-size: 1.35rem; font-weight: 800; color: #0f172a; margin-top: 0.15rem;'>{score}% Overall Alignment</div>
+            </div>
+            <div>
+                <span style='background: {badge_bg}; color: {badge_color}; border: 1px solid {badge_border}; padding: 6px 14px; border-radius: 16px; font-size: 0.88rem; font-weight: 700; white-space: nowrap;'>
+                    🎯 {score}% Match • {match_label}
+                </span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("#### 💡 Executive Recruiter Rationale")
+    st.info(rationale)
+
+    if matched_skills:
+        st.markdown("#### 🛠️ Key Competency Overlap")
+        badges = " ".join([
+            f"<span style='display: inline-block; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 3px 9px; border-radius: 6px; font-size: 0.82rem; font-weight: 500; margin: 2px 4px 4px 0;'>{s}</span>"
+            for s in matched_skills
+        ])
+        st.markdown(f"<div style='margin-bottom: 0.75rem;'>{badges}</div>", unsafe_allow_html=True)
+
+    if seniority:
+        st.markdown("#### 📈 Seniority & Leveling Assessment")
+        st.markdown(seniority)
+
+    if strengths:
+        st.markdown("#### ✅ Core Candidate Advantages")
+        for s in strengths:
+            st.markdown(f"- {s}")
+
+    if recommendations:
+        st.markdown("#### 🚀 Actionable Application Advice")
+        for r in recommendations:
+            st.markdown(f"- {r}")
+
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    if st.button("Close Analysis", key=f"dlg_close_{abs(hash(role)) % 100000}", use_container_width=True):
+        st.rerun()
+
+
 def render_screen2() -> None:
     """Render the structured profile review screen for candidate confirmation."""
     st.markdown("### 🔍 Screen 2: Profile Review & Synthesis")
@@ -103,10 +168,9 @@ def render_screen2() -> None:
             badge_color = eval_data["badge_color"]
             badge_border = eval_data["badge_border"]
             match_label = eval_data["match_label"]
-            rationale = eval_data["rationale"]
 
-            # Role row with checkbox and match score badge
-            r_col1, r_col2 = st.columns([3.2, 1.3])
+            # Role row with checkbox, match score & dynamic qualitative tier, and Recruiter Analysis button
+            r_col1, r_col2, r_col3 = st.columns([2.2, 2.0, 1.0], vertical_alignment="center")
             with r_col1:
                 is_checked = st.checkbox(
                     f"**{role}**",
@@ -117,20 +181,22 @@ def render_screen2() -> None:
                     active_selected_roles.append(role)
             with r_col2:
                 st.markdown(
-                    f"<div style='text-align: right; padding-top: 3px;'>"
+                    f"<div style='text-align: right;'>"
                     f"<span style='background: {badge_bg}; color: {badge_color}; border: 1px solid {badge_border}; "
                     f"padding: 3px 9px; border-radius: 12px; font-size: 0.78rem; font-weight: 700; white-space: nowrap;'>"
-                    f"🎯 {score}% Match</span></div>",
+                    f"🎯 {score}% Match • {match_label}</span></div>",
                     unsafe_allow_html=True,
                 )
+            with r_col3:
+                if st.button(
+                    "💡 Analysis",
+                    key=f"btn_rec_analysis_{idx}_{abs(hash(role)) % 100000}",
+                    help=f"View Recruiter Analysis for {role}",
+                    use_container_width=True,
+                ):
+                    show_recruiter_analysis_dialog(role, eval_data, candidate_name)
 
-            # Recruiter evaluation rationale
-            st.markdown(
-                f"<div style='font-size: 0.82rem; color: #64748b; margin-left: 1.8rem; margin-top: -0.35rem; margin-bottom: 0.75rem;'>"
-                f"💡 <strong style='color: #475569;'>Recruiter Analysis:</strong> {rationale} "
-                f"<span style='color: {badge_color}; font-weight: 600;'>({match_label})</span></div>",
-                unsafe_allow_html=True,
-            )
+            st.markdown("<div style='margin-bottom: 4px;'></div>", unsafe_allow_html=True)
 
         if not active_selected_roles:
             st.warning("⚠️ Please select at least one Recommended Role to include in the autonomous search.")
