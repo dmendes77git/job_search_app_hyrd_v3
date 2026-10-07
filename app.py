@@ -141,7 +141,7 @@ def main() -> None:
                     <span>{cand_name}</span>
                 </div>
                 <div class="badge-module">
-                    v3 Multi-User
+                    v4 Autonomous Agentic
                 </div>
             </div>
         </div>
@@ -177,7 +177,7 @@ def main() -> None:
             go_to_screen(SCREEN_REGISTRY)
 
         if st.button("🔭 Scout & Morning Digest", key="sidebar_btn_scout", use_container_width=True, help="Open Autonomous Job Scout & Daily Intelligence Digest"):
-            active_p = get_user_profile(active_user_id) or st.session_state.get("parsed_profile", {})
+            active_p = st.session_state.get("parsed_profile") or active_profile or get_user_profile(active_id) or {}
             show_job_scout_dialog(active_p)
 
         st.markdown("---")
