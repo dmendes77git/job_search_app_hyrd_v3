@@ -257,6 +257,34 @@ class TestSalaryEvaluator(unittest.TestCase):
         self.assertIn("assessment", eval_result)
         self.assertIn(eval_result["rank"], ["Competitive", "Top of Market", "Fair Market", "Below Market", "Above Market"])
 
+        # Test Target Location & Countries calibration (Germany)
+        de_profile = {
+            "target_role": "Senior AI Engineer",
+            "target_location": "Berlin, Germany",
+            "preferred_min_salary": "€100,000",
+        }
+        de_eval = self.evaluate_job_salary(
+            "€115,000 - €135,000",
+            job_title="Senior AI Engineer",
+            profile=de_profile,
+            target_location="Berlin, Germany",
+        )
+        self.assertEqual(de_eval["location_name"], "Germany")
+        self.assertEqual(de_eval["location_factor"], 0.78)
+        self.assertIn(de_eval["rank"], ["Within Market Standard", "Above Market"])
+        self.assertGreaterEqual(de_eval["score"], 75)
+        self.assertIn("Germany", de_eval["location_badge"])
+
+        # Test UK calibration
+        uk_eval = self.evaluate_job_salary(
+            "£95,000 - £120,000",
+            job_title="Senior AI Engineer",
+            target_location="London, United Kingdom",
+        )
+        self.assertEqual(uk_eval["location_name"], "United Kingdom")
+        self.assertEqual(uk_eval["location_factor"], 0.82)
+        self.assertIn(uk_eval["rank"], ["Within Market Standard", "Above Market"])
+
 
 class TestUserManager(unittest.TestCase):
     """Verifies multi-user isolation, registry persistence, and workspaces."""

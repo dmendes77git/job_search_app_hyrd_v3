@@ -71,6 +71,11 @@ def extract_target_countries(location_text: str) -> List[str]:
             if w not in _STOPWORDS_LOCATION:
                 found.add(w)
 
+    # Disambiguate California "ca" vs Canada: If "united states" is present and "canada" was only matched by "ca"
+    if "united states" in found and "canada" in found:
+        if not any(w in lt for w in ["canada", "toronto", "vancouver", "montreal", "ottawa", "calgary", "ontario", "quebec", "alberta"]):
+            found.remove("canada")
+
     return sorted(list(found))
 
 

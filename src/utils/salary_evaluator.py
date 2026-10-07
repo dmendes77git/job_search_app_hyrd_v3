@@ -255,17 +255,238 @@ def detect_seniority_tier(role_title: str, exp_level_str: str = "") -> str:
     return "senior"
 
 
+# Geographic salary benchmark factors relative to US/Global baseline (1.00)
+# Calibrated according to regional market compensation standards
+GEOGRAPHIC_SALARY_FACTORS: Dict[str, Dict[str, Any]] = {
+    "switzerland": {
+        "factor": 1.18,
+        "name": "Switzerland",
+        "symbol": "CHF",
+        "fx_to_usd": 1.12,
+    },
+    "united states": {
+        "factor": 1.00,
+        "name": "United States",
+        "symbol": "$",
+        "fx_to_usd": 1.00,
+    },
+    "singapore": {
+        "factor": 0.85,
+        "name": "Singapore",
+        "symbol": "S$",
+        "fx_to_usd": 0.76,
+    },
+    "canada": {
+        "factor": 0.84,
+        "name": "Canada",
+        "symbol": "CAD$",
+        "fx_to_usd": 0.74,
+    },
+    "australia": {
+        "factor": 0.84,
+        "name": "Australia",
+        "symbol": "A$",
+        "fx_to_usd": 0.66,
+    },
+    "united kingdom": {
+        "factor": 0.82,
+        "name": "United Kingdom",
+        "symbol": "£",
+        "fx_to_usd": 1.28,
+    },
+    "germany": {
+        "factor": 0.78,
+        "name": "Germany",
+        "symbol": "€",
+        "fx_to_usd": 1.08,
+    },
+    "netherlands": {
+        "factor": 0.78,
+        "name": "Netherlands",
+        "symbol": "€",
+        "fx_to_usd": 1.08,
+    },
+    "ireland": {
+        "factor": 0.78,
+        "name": "Ireland",
+        "symbol": "€",
+        "fx_to_usd": 1.08,
+    },
+    "norway": {
+        "factor": 0.78,
+        "name": "Norway",
+        "symbol": "NOK",
+        "fx_to_usd": 0.095,
+    },
+    "denmark": {
+        "factor": 0.78,
+        "name": "Denmark",
+        "symbol": "DKK",
+        "fx_to_usd": 0.145,
+    },
+    "austria": {
+        "factor": 0.75,
+        "name": "Austria",
+        "symbol": "€",
+        "fx_to_usd": 1.08,
+    },
+    "sweden": {
+        "factor": 0.74,
+        "name": "Sweden",
+        "symbol": "SEK",
+        "fx_to_usd": 0.096,
+    },
+    "france": {
+        "factor": 0.72,
+        "name": "France",
+        "symbol": "€",
+        "fx_to_usd": 1.08,
+    },
+    "finland": {
+        "factor": 0.72,
+        "name": "Finland",
+        "symbol": "€",
+        "fx_to_usd": 1.08,
+    },
+    "israel": {
+        "factor": 0.86,
+        "name": "Israel",
+        "symbol": "₪",
+        "fx_to_usd": 0.27,
+    },
+    "japan": {
+        "factor": 0.70,
+        "name": "Japan",
+        "symbol": "¥",
+        "fx_to_usd": 0.0066,
+    },
+    "spain": {
+        "factor": 0.60,
+        "name": "Spain",
+        "symbol": "€",
+        "fx_to_usd": 1.08,
+    },
+    "italy": {
+        "factor": 0.60,
+        "name": "Italy",
+        "symbol": "€",
+        "fx_to_usd": 1.08,
+    },
+    "portugal": {
+        "factor": 0.58,
+        "name": "Portugal",
+        "symbol": "€",
+        "fx_to_usd": 1.08,
+    },
+    "poland": {
+        "factor": 0.55,
+        "name": "Poland",
+        "symbol": "PLN",
+        "fx_to_usd": 0.25,
+    },
+    "brazil": {
+        "factor": 0.45,
+        "name": "Brazil",
+        "symbol": "R$",
+        "fx_to_usd": 0.18,
+    },
+    "mexico": {
+        "factor": 0.45,
+        "name": "Mexico",
+        "symbol": "MX$",
+        "fx_to_usd": 0.051,
+    },
+    "india": {
+        "factor": 0.40,
+        "name": "India",
+        "symbol": "₹",
+        "fx_to_usd": 0.012,
+    },
+    "europe": {
+        "factor": 0.76,
+        "name": "Europe",
+        "symbol": "€",
+        "fx_to_usd": 1.08,
+    },
+}
+
+
+def resolve_location_factor(
+    target_location: Optional[str] = None,
+    job_location: Optional[str] = None,
+) -> Tuple[float, str, str, Optional[float]]:
+    """
+    Resolves the geographic salary benchmark factor, matched location name,
+    currency symbol, and fx rate based on Candidate Target Location & Countries (Screen 1)
+    and specific job location.
+    
+    Returns:
+      (factor, display_name, symbol, fx_to_usd)
+      e.g. (0.78, "Germany", "€", 1.08)
+    """
+    from src.agents.matching.scoring import extract_target_countries
+
+    target_loc_clean = (target_location or "").strip()
+    job_loc_clean = (job_location or "").strip()
+
+    target_countries = extract_target_countries(target_loc_clean) if target_loc_clean else []
+    job_countries = extract_target_countries(job_loc_clean) if job_loc_clean else []
+
+    # Priority 1: Check for direct match between job location and candidate target countries
+    for jc in job_countries:
+        if jc in target_countries and jc in GEOGRAPHIC_SALARY_FACTORS:
+            info = GEOGRAPHIC_SALARY_FACTORS[jc]
+            return info["factor"], info["name"], info["symbol"], info.get("fx_to_usd")
+
+    # Priority 2: Use candidate's defined Target Location & Countries from Screen 1
+    if target_countries:
+        known_countries = [c for c in target_countries if c in GEOGRAPHIC_SALARY_FACTORS]
+        if len(known_countries) == 1:
+            info = GEOGRAPHIC_SALARY_FACTORS[known_countries[0]]
+            return info["factor"], info["name"], info["symbol"], info.get("fx_to_usd")
+        elif len(known_countries) > 1:
+            avg_factor = sum(GEOGRAPHIC_SALARY_FACTORS[c]["factor"] for c in known_countries) / len(known_countries)
+            names = ", ".join(GEOGRAPHIC_SALARY_FACTORS[c]["name"] for c in known_countries)
+            sym = GEOGRAPHIC_SALARY_FACTORS[known_countries[0]]["symbol"]
+            return avg_factor, names, sym, None
+
+    # Priority 3: If candidate didn't specify country (e.g. general Remote), but job has a country
+    if job_countries and job_countries[0] in GEOGRAPHIC_SALARY_FACTORS:
+        info = GEOGRAPHIC_SALARY_FACTORS[job_countries[0]]
+        return info["factor"], info["name"], info["symbol"], info.get("fx_to_usd")
+
+    # Priority 4: Regional keywords in target location text
+    t_lower = target_loc_clean.lower()
+    if any(k in t_lower for k in ["europe", "eu ", "european"]):
+        info = GEOGRAPHIC_SALARY_FACTORS["europe"]
+        return info["factor"], "Europe", info["symbol"], info.get("fx_to_usd")
+    if "dach" in t_lower:
+        return 0.80, "DACH Region (DE/AT/CH)", "€", 1.08
+    if any(k in t_lower for k in ["nordic", "scandinavia"]):
+        return 0.76, "Nordics", "€", 1.08
+    if any(k in t_lower for k in ["latam", "latin america"]):
+        return 0.45, "Latin America", "$", 1.00
+    if "asia" in t_lower:
+        return 0.65, "Asia", "$", 1.00
+
+    # Fallback to default US/Global baseline
+    return 1.00, "Global / US Baseline", "$", 1.00
+
+
 def evaluate_job_salary(
     job_salary_str: str,
     job_title: str = "",
     profile: Optional[Dict[str, Any]] = None,
     desired_min_salary_str: str = "",
+    target_location: Optional[str] = None,
+    job_location: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Comprehensive evaluation of a proposed job salary against:
     1. Candidate profile experience & seniority
     2. Stated candidate minimum salary preference
-    3. Market rate benchmarks for the role domain and seniority tier
+    3. Target Location & Countries defined in Screen 1
+    4. Market rate benchmarks calibrated to the target location/countries
     Returns numerical score (0-100), qualitative rank, badge styling, and assessment text.
     """
     prof = profile or {}
@@ -275,15 +496,40 @@ def evaluate_job_salary(
     domain = detect_role_domain(job_title or cand_role)
     tier = detect_seniority_tier(job_title or cand_role, cand_exp)
 
-    bench_min, bench_max = MARKET_BENCHMARKS.get(domain, MARKET_BENCHMARKS["general"]).get(
+    base_min, base_max = MARKET_BENCHMARKS.get(domain, MARKET_BENCHMARKS["general"]).get(
         tier, (140000.0, 185000.0)
     )
+
+    # Resolve geographic location calibration factor based on Target Location & Countries
+    effective_target_loc = target_location or prof.get("target_location") or prof.get("location") or ""
+    effective_job_loc = job_location or ""
+    loc_factor, loc_name, loc_symbol, fx_rate = resolve_location_factor(effective_target_loc, effective_job_loc)
+
+    # Calibrate benchmark range to the target location / countries
+    bench_min = base_min * loc_factor
+    bench_max = base_max * loc_factor
     bench_mid = (bench_min + bench_max) / 2.0
 
     parsed_salary = parse_salary_range(job_salary_str)
     cand_min_num = parse_numeric_salary(desired_min_salary_str or prof.get("preferred_min_salary", ""))
 
     tier_label = TIER_LABELS.get(tier, "Senior Tier")
+    loc_tag = f" ({loc_name})" if loc_name != "Global / US Baseline" else ""
+    benchmark_title = f"{tier_label} • {domain.replace('_', ' ').upper()}{loc_tag}"
+    loc_badge = f"📍 {loc_name}" if loc_name != "Global / US Baseline" else "📍 Market Benchmark"
+    loc_context = (
+        f"Calibrated for {loc_name} ({loc_factor:.2f}x regional salary index)"
+        if loc_factor != 1.00
+        else "Standard US / Global Baseline Benchmark"
+    )
+
+    # Format benchmark range string with optional local currency
+    if fx_rate and loc_symbol in ["€", "£", "CHF"] and loc_factor != 1.00:
+        local_min = int(bench_min / fx_rate)
+        local_max = int(bench_max / fx_rate)
+        bench_range_str = f"${int(bench_min):,} - ${int(bench_max):,} USD (~{loc_symbol}{local_min:,} - {loc_symbol}{local_max:,})"
+    else:
+        bench_range_str = f"${int(bench_min):,} - ${int(bench_max):,}"
 
     if not parsed_salary["has_salary"]:
         # Undisclosed / Competitive Salary: Estimate benchmark and assign standard calibration
@@ -294,8 +540,8 @@ def evaluate_job_salary(
         badge_border = "#bfdbfe"
         rank_icon = "🔵"
         assessment = (
-            f"Salary undisclosed in job posting. Evaluated at market standard based on benchmark "
-            f"for {tier_label} in {domain.replace('_', ' ').title()} (${int(bench_min):,} - ${int(bench_max):,})."
+            f"Salary undisclosed in job posting. Evaluated at market standard based on {loc_name} benchmark "
+            f"for {tier_label} in {domain.replace('_', ' ').title()} ({bench_range_str})."
         )
         return {
             "score": score,
@@ -304,10 +550,14 @@ def evaluate_job_salary(
             "badge_text": badge_text,
             "badge_border": badge_border,
             "rank_icon": rank_icon,
-            "benchmark_range": f"${int(bench_min):,} - ${int(bench_max):,}",
-            "benchmark_title": f"{tier_label} • {domain.replace('_', ' ').upper()}",
+            "benchmark_range": bench_range_str,
+            "benchmark_title": benchmark_title,
             "assessment": assessment,
             "is_estimated": True,
+            "location_name": loc_name,
+            "location_factor": loc_factor,
+            "location_badge": loc_badge,
+            "location_context": loc_context,
         }
 
     job_mid = parsed_salary["midpoint_usd"]
@@ -324,20 +574,20 @@ def evaluate_job_salary(
         diff_pct = (ratio - 1.0) * 100.0
         assessment = (
             f"Proposed compensation (${int(parsed_salary['min_usd']):,} - ${int(parsed_salary['max_usd']):,}) "
-            f"is {diff_pct:+.1f}% above the median market benchmark (${int(bench_mid):,}) for {tier_label}."
+            f"is {diff_pct:+.1f}% above the {loc_name} median market benchmark (${int(bench_mid):,}) for {tier_label}."
         )
-    elif ratio >= 0.88:
+    elif ratio >= 0.85:
         rank = "Within Market Standard"
         rank_icon = "🔵"
         badge_bg = "#eff6ff"
         badge_text = "#1e40af"
         badge_border = "#bfdbfe"
-        score = int(min(87, max(75, 75 + ((ratio - 0.88) / 0.24) * 12)))
+        score = int(min(87, max(75, 75 + ((ratio - 0.85) / 0.27) * 12)))
         diff_pct = (ratio - 1.0) * 100.0
         sign = "+" if diff_pct >= 0 else ""
         assessment = (
             f"Proposed compensation (${int(parsed_salary['min_usd']):,} - ${int(parsed_salary['max_usd']):,}) "
-            f"aligns closely with the market benchmark (${int(bench_min):,} - ${int(bench_max):,}, {sign}{diff_pct:.1f}% vs median)."
+            f"aligns closely with the {loc_name} market benchmark ({bench_range_str}, {sign}{diff_pct:.1f}% vs local median)."
         )
     else:
         rank = "Below Market"
@@ -349,7 +599,7 @@ def evaluate_job_salary(
         deficit_pct = (1.0 - ratio) * 100.0
         assessment = (
             f"Proposed compensation (${int(parsed_salary['min_usd']):,} - ${int(parsed_salary['max_usd']):,}) "
-            f"is {deficit_pct:.1f}% below typical market benchmarks (${int(bench_min):,} - ${int(bench_max):,}) for this seniority level."
+            f"is {deficit_pct:.1f}% below typical {loc_name} market benchmarks ({bench_range_str}) for this seniority level."
         )
 
     # Candidate minimum preference alignment
@@ -369,8 +619,12 @@ def evaluate_job_salary(
         "badge_text": badge_text,
         "badge_border": badge_border,
         "rank_icon": rank_icon,
-        "benchmark_range": f"${int(bench_min):,} - ${int(bench_max):,}",
-        "benchmark_title": f"{tier_label} • {domain.replace('_', ' ').upper()}",
+        "benchmark_range": bench_range_str,
+        "benchmark_title": benchmark_title,
         "assessment": assessment,
         "is_estimated": parsed_salary["is_estimated"],
+        "location_name": loc_name,
+        "location_factor": loc_factor,
+        "location_badge": loc_badge,
+        "location_context": loc_context,
     }

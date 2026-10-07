@@ -31,13 +31,16 @@ def render_screen4() -> None:
     """Render the final dashboard displaying ranked job matches and recommendations."""
     profile = st.session_state.get("parsed_profile") or SAMPLE_PARSED_PROFILE
 
+    target_loc_global = st.session_state.get("target_location") or profile.get("target_location") or profile.get("location") or ""
+    loc_sub = f", and regional compensation benchmarks for **{target_loc_global}**" if target_loc_global else ", and market compensation benchmarks"
+
     # Header with title and quick link to Kanban
     head_left, head_right = st.columns([3, 1.8])
     with head_left:
         st.markdown("### 📊 Screen 4: AI Job Match Dashboard")
         st.markdown(
             "Here are the top roles identified and vetted by Hyrd. "
-            "Each opportunity has been evaluated against your resume experience, target salary, and core skills."
+            f"Each opportunity has been evaluated against your resume experience, target salary{loc_sub}, and core skills."
         )
     with head_right:
         st.markdown("<div style='text-align: right; margin-top: 0.65rem;'>", unsafe_allow_html=True)
@@ -116,6 +119,7 @@ def render_screen4() -> None:
     # Filter job results based on controls
     filtered_jobs = []
     cand_min_pref = st.session_state.get("min_salary") or profile.get("preferred_min_salary", "")
+    target_loc = st.session_state.get("target_location") or profile.get("target_location") or profile.get("location") or ""
 
     for job in jobs_source:
         if job["fit_score"] < min_score:
@@ -136,12 +140,14 @@ def render_screen4() -> None:
         elif loc_filter == "On-site Only" and "on-site" not in job_type_lower:
             continue
 
-        # Evaluate proposed salary against candidate profile, preferences, and market benchmarks
+        # Evaluate proposed salary against candidate profile, preferences, and target location market benchmarks
         salary_eval = evaluate_job_salary(
             job_salary_str=job.get("salary", ""),
             job_title=job.get("title", ""),
             profile=profile,
             desired_min_salary_str=cand_min_pref,
+            target_location=target_loc,
+            job_location=job.get("location", ""),
         )
         job["salary_eval"] = salary_eval
 
@@ -166,6 +172,8 @@ def render_screen4() -> None:
             job_title=job.get("title", ""),
             profile=profile,
             desired_min_salary_str=cand_min_pref,
+            target_location=target_loc,
+            job_location=job.get("location", ""),
         )
 
         # Native Bordered Card Container
@@ -217,19 +225,22 @@ def render_screen4() -> None:
                 st.markdown(f"💼 **Job Type:** {job_type}")
                 st.markdown(f"💰 **Salary:** {clean_salary}")
 
-                # Salary Score and Market Benchmark Rank
+                # Salary Score and Market Benchmark Rank with Location Badge
                 score_val = salary_eval["score"]
                 rank_label = salary_eval["rank"]
                 rank_icon = salary_eval["rank_icon"]
                 s_badge_bg = salary_eval["badge_bg"]
                 s_badge_text = salary_eval["badge_text"]
                 s_badge_border = salary_eval["badge_border"]
+                loc_badge = salary_eval.get("location_badge") or "📍 Market Benchmark"
 
                 st.markdown(
                     f"<div style='margin-top: 0.15rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; font-size: 0.95rem;'>"
                     f"<span>📊 <strong>Salary Score:</strong> <strong>{score_val}/100</strong></span>"
                     f"<span style='background: {s_badge_bg}; color: {s_badge_text}; border: 1px solid {s_badge_border}; padding: 0.12rem 0.55rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 600; white-space: nowrap;'>"
                     f"{rank_icon} {rank_label}</span>"
+                    f"<span style='background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; padding: 0.12rem 0.5rem; border-radius: 4px; font-size: 0.74rem; font-weight: 500; white-space: nowrap;'>"
+                    f"{loc_badge}</span>"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
@@ -269,9 +280,11 @@ def render_screen4() -> None:
                         st.markdown(f"**Potential Growth Gaps:**<br>{missing_html}", unsafe_allow_html=True)
 
                     st.markdown("**💰 Market Compensation Evaluation:**")
+                    loc_calib = salary_eval.get("location_context", "Standard Benchmark")
                     st.markdown(
                         f"- **Market Benchmark ({salary_eval['benchmark_title']}):** {salary_eval['benchmark_range'].replace('$', r'\$')}\n"
                         f"- **Salary Score:** {salary_eval['score']}/100 ({salary_eval['rank']})\n"
+                        f"- **Target Location Calibration:** {loc_calib}\n"
                         f"- **Assessment:** {salary_eval['assessment'].replace('$', r'\$')}"
                     )
 

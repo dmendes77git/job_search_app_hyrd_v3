@@ -406,6 +406,11 @@ def render_screen1() -> None:
             st.session_state.target_location = location.strip()
             st.session_state.remote_pref = remote_pref
             st.session_state.min_salary = min_salary.strip()
+            parsed_data["location"] = location.strip()
+            parsed_data["target_location"] = location.strip()
+            if min_salary.strip():
+                parsed_data["preferred_min_salary"] = min_salary.strip()
+            parsed_data["work_mode"] = remote_pref
 
             flush_session_to_user_workspace()
             go_to_screen(SCREEN_REVIEW)
