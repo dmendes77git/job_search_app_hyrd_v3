@@ -41,6 +41,9 @@ from src.agents.scrapers import (
     fetch_weworkremotely_jobs,
     fetch_telecomcrossing_jobs,
     fetch_ziprecruiter_jobs,
+    fetch_itjobs_jobs,
+    fetch_netempregos_jobs,
+    fetch_landingjobs_jobs,
 )
 
 # Backwards compatibility alias
@@ -71,6 +74,9 @@ __all__ = [
     "fetch_weworkremotely_jobs",
     "fetch_telecomcrossing_jobs",
     "fetch_ziprecruiter_jobs",
+    "fetch_itjobs_jobs",
+    "fetch_netempregos_jobs",
+    "fetch_landingjobs_jobs",
     "search_live_jobs_pipeline",
 ]
 
@@ -122,7 +128,7 @@ def search_live_jobs_pipeline(
     log(5, "JobCrawler-Dispatcher", dispatch_desc)
 
 
-    # Configure the concurrent scraper tasks across all 14 channels
+    # Configure the concurrent scraper tasks across all 17 channels
     tasks = [
         ("LinkedIn", lambda: fetch_linkedin_jobs(target_query=target_role, target_location=target_loc_str, work_mode_pref=work_mode_pref, limit=25)),
         ("Ashby", lambda: fetch_ashby_jobs(target_query=target_role, target_location=target_loc_str, custom_companies=custom_companies, limit=40)),
@@ -134,6 +140,9 @@ def search_live_jobs_pipeline(
         ("WeWorkRemotely", lambda: fetch_weworkremotely_jobs(target_query=target_role, target_location=target_loc_str, limit=35)),
         ("TelecomCrossing", lambda: fetch_telecomcrossing_jobs(target_query=target_role, target_location=target_loc_str, limit=25)),
         ("ZipRecruiter", lambda: fetch_ziprecruiter_jobs(target_query=target_role, target_location=target_loc_str, is_remote=not is_onsite_only, limit=25)),
+        ("ITJobs", lambda: fetch_itjobs_jobs(target_query=target_role, target_location=target_loc_str, limit=30)),
+        ("NetEmpregos", lambda: fetch_netempregos_jobs(target_query=target_role, target_location=target_loc_str, limit=30)),
+        ("LandingJobs", lambda: fetch_landingjobs_jobs(target_query=target_role, target_location=target_loc_str, limit=25)),
         ("Jobicy", lambda: fetch_jobicy_jobs(limit=40)),
         ("RemoteOK", lambda: fetch_remoteok_jobs(limit=50)),
         ("Remotive", lambda: fetch_remotive_jobs(limit=30)),
@@ -149,7 +158,7 @@ def search_live_jobs_pipeline(
     all_raw = []
     completed_count = 0
 
-    with ThreadPoolExecutor(max_workers=min(14, total_tasks)) as executor:
+    with ThreadPoolExecutor(max_workers=min(17, total_tasks)) as executor:
         future_to_name = {
             executor.submit(safe_scrape, name, fn): name
             for name, fn in tasks

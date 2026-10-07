@@ -15,7 +15,7 @@ This guide provides a comprehensive, front-to-back walkthrough of the applicatio
 4. [Screen 0: Candidate Account Hub & User Registry](#-screen-0-candidate-account-hub--user-registry)
 5. [Screen 1: Candidate Profile Intake & Search Preferences](#-screen-1-candidate-profile-intake--search-preferences)
 6. [Screen 2: Profile Review & Competency Calibration](#-screen-2-profile-review--competency-calibration)
-7. [Screen 3: Agentic Search & The 14-Source Scraping Engine](#-screen-3-agentic-search--the-14-source-scraping-engine)
+7. [Screen 3: Agentic Search & The 17-Source Scraping Engine](#-screen-3-agentic-search--the-17-source-scraping-engine)
 8. [Screen 4: Job Dashboard & Opportunity Evaluation](#-screen-4-job-dashboard--opportunity-evaluation)
    - [Salary Evaluator & Market Benchmarking](#salary-evaluator--market-benchmarking)
    - [The 4 Agentic Power Tools](#the-4-agentic-power-tools)
@@ -39,7 +39,7 @@ Unlike traditional static job boards, **Agentic AI Job Search** employs a multi-
 [Screen 2: Profile Review & Calibration]
                      │
                      ▼
-[Screen 3: 14-Source Autonomous Crawler & Matcher]
+[Screen 3: 17-Source Autonomous Crawler & Matcher]
                      │
                      ▼
 [Screen 4: Job Dashboard & 4 Power Tools]
@@ -51,7 +51,7 @@ Unlike traditional static job boards, **Agentic AI Job Search** employs a multi-
 ### Specialized Agents & Systems:
 - **User Manager & Workspace Isolation (`user_manager.py`)**: Manages isolated multi-user workspaces (`data/users/{user_id}/`). Persists full candidate career profiles, tailored CVs, cover letters, prep packs, outreach messages, and Kanban stages with zero cross-contamination.
 - **Resume Parser Agent (`resume_parser_agent.py`)**: Ingests uploaded resumes in `.pdf`, `.docx`, or text formats, extracts structured competencies, career history, and target roles via Google Gemini with Pydantic schemas. Supports 1-click auto-fill during profile registration.
-- **Job Scraper & Crawler Agent (`job_scraper_agent.py`)**: Concurrently crawls **14 live job sources** across major networks, applicant tracking systems (ATS), and scrapers.
+- **Job Scraper & Crawler Agent (`job_scraper_agent.py`)**: Concurrently crawls **17 live job sources** across major networks, applicant tracking systems (ATS), and regional scrapers.
 - **Semantic Matcher & Scoring Agent**: Evaluates roles using a three-tier scoring model (Title & Seniority, Skill Overlap, Location/Work Mode) to produce calibrated fit scores (0–100%).
 - **Salary Benchmark Evaluator (`salary_evaluator.py`)**: Analyzes compensation against market baselines and candidate seniority, generating a numerical Salary Score and market rank (*Above Market*, *Within Market Standard*, *Below Market*).
 - **Application Tailoring Agent (`application_agent.py`)**: Dynamically tailors customized CVs and high-conversion cover letters specifically targeted to each employer.
@@ -228,20 +228,20 @@ Screen 2 presents the structured output extracted by the AI agent before initiat
 
 ---
 
-## ⚡ Screen 3: Agentic Search & The 14-Source Concurrent Scraping Engine
+## ⚡ Screen 3: Agentic Search & The 17-Source Concurrent Scraping Engine
 
 Screen 3 is an interactive search engine that executes parallel scraping, filters opportunities by your criteria, and scores each position.
 
-### Concurrent Async Architecture (v2 New)
-In Version 2, all 14 scrapers execute concurrently via `concurrent.futures.ThreadPoolExecutor(max_workers=14)`. Instead of waiting sequentially across 14 networks (which previously took 25+ seconds), all scrapers run in parallel, retrieving 350+ live opportunities in **4 to 8 seconds**.
+### Concurrent Async Architecture (v2/v3 New)
+In Version 2 and 3, all 17 scrapers execute concurrently via `concurrent.futures.ThreadPoolExecutor(max_workers=17)`. Instead of waiting sequentially across 17 networks (which previously took 25+ seconds), all scrapers run in parallel, retrieving 400+ live opportunities in **4 to 8 seconds**.
 
 ### Live Telemetry & Progress Stream
 - Real-time progress bar (0% to 100%) dynamically incrementing as each scraper finishes.
 - Animated terminal-style execution log detailing each crawler’s actions, timestamp, retrieved counts, and status.
 
-### The 14-Source Multi-Agent Scraping Engine
+### The 17-Source Multi-Agent Scraping Engine
 
-The platform aggregates opportunities across 14 distinct global sources:
+The platform aggregates opportunities across 17 distinct global and regional sources:
 
 | # | Source | Domain & Focus | Work Modes & Coverage | Integration & Scraping Method |
 |---|---|---|---|---|
@@ -259,13 +259,16 @@ The platform aggregates opportunities across 14 distinct global sources:
 | **12** | **Jobicy** | Remote jobs across diverse business sectors | **Remote** (Global & Regional) | REST API v2 (`/api/v2/remote-jobs`) |
 | **13** | **RemoteOK** | Remote tech and digital roles with posted salaries | **Remote** (Worldwide) | Direct feed API (`/api`) with structured compensation data |
 | **14** | **Remotive** | Curated remote engineering, product, and business positions | **Remote** (Global & Regional) | REST API (`/api/remote-jobs`) |
+| **15** | **ITJobs.pt** | Premier Portuguese portal for IT, software, AI, and telecom roles | **On-site, Hybrid & Remote (Portugal & EU)** | Semantic HTML scraper with direct clean job links (`/emprego`) |
+| **16** | **Net-Empregos** | Largest Portuguese job board across all districts and sectors | **On-site, Hybrid & Remote (Portugal nationwide)** | ISO-8859-1 localized HTML crawler with date & district parsing (`/pesquisa-empregos.asp`) |
+| **17** | **Landing.jobs** | Lisbon tech hub scale-ups, European tech, and remote opportunities | **Remote & Hybrid (Portugal & Europe)** | Semantic card scraper with transparent EUR/USD salary bands (`/jobs`) |
 
 ### How Semantic Fit Scoring & Pre-Filtering Works
 Each scraped posting is evaluated by the **Semantic Matcher**:
 1. **Negative Keyword Rejection (v2 New)**: Before scoring, any opportunity containing any of your specified negative keywords in its title, company, or description is automatically excluded.
 2. **Title & Seniority Alignment (0–45 pts)**: Matches target role keywords, seniority tokens (*Senior, Staff, Principal, Lead, Director*), and career trajectory.
 3. **Core Competency Overlap (0–35 pts)**: Compares required technologies and competencies against your verified CV skills.
-4. **Location & Work-Mode Fit (0–20 pts)**: Validates remote eligibility or matches on-site/hybrid positions against your target country/city.
+4. **Location & Work-Mode Fit (0–20 pts)**: Validates remote eligibility or matches on-site/hybrid positions against your target country/city (with native Portuguese district and work-mode terminology support: *Lisboa, Porto, Coimbra, Braga, Aveiro, Remoto, Teletrabalho, Híbrido*).
 5. **Dream Company Priority Boost (v2 New)**: Positions from your target dream employers receive an automatic +6 fit score boost and special justification tags.
 - **Fit Badges**:
   - 🟢 **90% - 100%**: Exceptional Match
@@ -279,7 +282,7 @@ Each scraped posting is evaluated by the **Semantic Matcher**:
 Screen 4 displays your ranked opportunities with filtering tools and application utilities:
 
 ### 1. Executive Metric KPIs
-- **Total Openings Scraped**: Live count of positions crawled across all 14 sources concurrently (typically 350+).
+- **Total Openings Scraped**: Live count of positions crawled across all 17 sources concurrently (typically 400+).
 - **High-Fit Matches**: Number of roles meeting an 80%+ threshold.
 - **Top Match Score**: Highest calibrated fit score.
 
@@ -423,7 +426,7 @@ The crawler uses a multi-tier approach:
 - Direct public JSON/REST endpoints (Arbeitnow, Jobicy, RemoteOK, Remotive, Ashby, Greenhouse, Lever, SmartRecruiters).
 - Official RSS XML feeds (We Work Remotely).
 - `python-jobspy` for direct scraping without API keys.
-- Automatic exception handling ensures that if any single source experiences network latency, the remaining 13 sources continue unaffected.
+- Automatic exception handling ensures that if any single source experiences network latency, the remaining 16 sources continue unaffected.
 
 ### 4. What is the Apify integration used for?
 Apify allows you to run cloud-hosted web actors (e.g., specialized LinkedIn or Indeed crawlers). If you do not have an Apify token, leave the field blank; the app will use its built-in direct scrapers.

@@ -35,6 +35,11 @@ from .remote_scrapers import (
     fetch_telecomcrossing_jobs,
     fetch_ziprecruiter_jobs,
 )
+from .portuguese_scrapers import (
+    fetch_itjobs_jobs,
+    fetch_netempregos_jobs,
+    fetch_landingjobs_jobs,
+)
 
 __all__ = [
     "DEFAULT_HEADERS",
@@ -57,4 +62,7 @@ __all__ = [
     "fetch_weworkremotely_jobs",
     "fetch_telecomcrossing_jobs",
     "fetch_ziprecruiter_jobs",
+    "fetch_itjobs_jobs",
+    "fetch_netempregos_jobs",
+    "fetch_landingjobs_jobs",
 ]

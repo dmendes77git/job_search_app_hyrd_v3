@@ -28,7 +28,7 @@ COUNTRY_SYNONYMS: Dict[str, List[str]] = {
     "israel": ["israel", "tel aviv", "jerusalem", "il"],
     "japan": ["japan", "tokyo", "osaka", "jp"],
     "india": ["india", "bangalore", "bengaluru", "hyderabad", "pune", "mumbai", "delhi", "in"],
-    "portugal": ["portugal", "lisbon", "porto", "pt"],
+    "portugal": ["portugal", "lisbon", "lisboa", "porto", "braga", "coimbra", "aveiro", "faro", "funchal", "madeira", "açores", "acores", "oeiras", "cascais", "leiria", "sintra", "setúbal", "setubal", "pt"],
     "italy": ["italy", "italia", "milan", "rome", "it"],
     "norway": ["norway", "norge", "oslo", "no"],
     "finland": ["finland", "suomi", "helsinki", "fi"],
@@ -119,18 +119,26 @@ def determine_work_mode(job: Dict[str, Any]) -> Tuple[str, bool, bool, bool]:
         + " "
         + job.get("job_type", "")
         + " "
+        + job.get("description", "")
+        + " "
         + " ".join(job.get("tags", []))
     ).lower()
 
     is_explicit_remote = (
         job.get("remote") is True
         or "remote" in raw_text
+        or "remoto" in raw_text
+        or "teletrabalho" in raw_text
         or "anywhere" in raw_text
         or "worldwide" in raw_text
         or "work from home" in raw_text
     )
 
-    is_explicit_hybrid = "hybrid" in raw_text
+    is_explicit_hybrid = (
+        "hybrid" in raw_text
+        or "híbrido" in raw_text
+        or "hibrido" in raw_text
+    )
 
     loc = job.get("location") or "General"
     if is_explicit_hybrid:

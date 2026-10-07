@@ -127,7 +127,7 @@ The platform is organized as a modular 6-screen deterministic state machine gove
 
 ---
 
-## 🌐 The 14-Source Scraping Engine
+## 🌐 The 17-Source Scraping Engine
 
 | # | Source | Type / Focus | Integration Method |
 |---|---|---|---|
@@ -141,10 +141,13 @@ The platform is organized as a modular 6-screen deterministic state machine gove
 | 8 | **JobSpy** | Direct Multi-Board Scraper | Python library (`python-jobspy`) for Indeed |
 | 9 | **Apify** | Cloud Web Scraping Actors | Native `apify-client` integration (optional sidebar token) |
 | 10 | **LinkedIn Jobs** | Worldwide Professional Network | Public guest search query endpoint |
-| 11 | **Arbeitnow** | European & Global Business Roles | REST API (`/api/job-board-api`) |
-| 12 | **Jobicy** | Remote Cross-Discipline | REST API v2 (`/api/v2/remote-jobs`) |
-| 13 | **RemoteOK** | Remote Tech & Business Roles | Direct feed API (`/api`) with compensation data |
-| 14 | **Remotive** | Curated Remote Positions | REST API (`/api/remote-jobs`) |
+| 11 | **ITJobs.pt** | Portuguese Tech, AI & Software Engineering | Real-time semantic HTML search parser (`/emprego?q=`) |
+| 12 | **Net-Empregos** | Portugal's #1 Job Portal (All Sectors & Districts) | Localized ISO-8859-1 search parser (`/pesquisa-empregos.asp`) |
+| 13 | **Landing.jobs** | European Tech Scale-ups & Startups | Static job card parser with salary bands (`/jobs?q=`) |
+| 14 | **Arbeitnow** | European & Global Business Roles | REST API (`/api/job-board-api`) |
+| 15 | **Jobicy** | Remote Cross-Discipline | REST API v2 (`/api/v2/remote-jobs`) |
+| 16 | **RemoteOK** | Remote Tech & Business Roles | Direct feed API (`/api`) with compensation data |
+| 17 | **Remotive** | Curated Remote Positions | REST API (`/api/remote-jobs`) |
 
 ---
 

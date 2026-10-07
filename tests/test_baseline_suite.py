@@ -684,6 +684,70 @@ class TestDateFreshnessUtils(unittest.TestCase):
         self.assertEqual(days_4, 4)
         self.assertEqual(label_4, "4 days ago")
 
+    def test_european_dates(self):
+        from datetime import date, timedelta
+        today_eu = date.today().strftime("%d-%m-%Y")
+        days_today, label_today = self.parse_days_since_posted(today_eu)
+        self.assertEqual(days_today, 0)
+
+        three_days_ago_eu = (date.today() - timedelta(days=3)).strftime("%d-%m-%Y")
+        days_3, label_3 = self.parse_days_since_posted(three_days_ago_eu)
+        self.assertEqual(days_3, 3)
+        self.assertEqual(label_3, "3 days ago")
+
+
+class TestPortugueseScrapers(unittest.TestCase):
+    """Verifies Portuguese job board scrapers (ITJobs.pt, Net-Empregos, Landing.jobs) and regional matching."""
+
+    def test_itjobs_scraper(self):
+        from src.agents.scrapers.portuguese_scrapers import fetch_itjobs_jobs
+        jobs = fetch_itjobs_jobs(target_query="python", limit=2)
+        self.assertIsInstance(jobs, list)
+        if jobs:
+            j = jobs[0]
+            self.assertIn("id", j)
+            self.assertIn("title", j)
+            self.assertEqual(j["source"], "ITJobs.pt")
+            self.assertTrue(j["url"].startswith("http"))
+
+    def test_netempregos_scraper(self):
+        from src.agents.scrapers.portuguese_scrapers import fetch_netempregos_jobs
+        jobs = fetch_netempregos_jobs(target_query="python", limit=2)
+        self.assertIsInstance(jobs, list)
+        if jobs:
+            j = jobs[0]
+            self.assertIn("id", j)
+            self.assertIn("title", j)
+            self.assertEqual(j["source"], "Net-Empregos")
+            self.assertTrue(j["url"].startswith("http"))
+
+    def test_landingjobs_scraper(self):
+        from src.agents.scrapers.portuguese_scrapers import fetch_landingjobs_jobs
+        jobs = fetch_landingjobs_jobs(target_query="python", limit=2)
+        self.assertIsInstance(jobs, list)
+        if jobs:
+            j = jobs[0]
+            self.assertIn("id", j)
+            self.assertIn("title", j)
+            self.assertEqual(j["source"], "Landing.jobs")
+            self.assertTrue(j["url"].startswith("http"))
+
+    def test_portuguese_location_and_work_mode(self):
+        from src.agents.matching.scoring import extract_target_countries, determine_work_mode
+        # Test Portuguese city synonyms map to portugal
+        for city in ["lisboa", "porto", "braga", "coimbra", "funchal", "oeiras"]:
+            countries = extract_target_countries(f"{city}, Portugal")
+            self.assertIn("portugal", countries)
+
+        # Test Portuguese work mode tokens
+        remote_job = {"location": "Lisboa", "description": "Trabalho 100% remoto para engenharia"}
+        label, is_rem, is_hyb, is_onsite = determine_work_mode(remote_job)
+        self.assertTrue(is_rem)
+
+        hybrid_job = {"location": "Porto", "description": "Modelo híbrido 2 dias no escritório"}
+        label_h, is_rem_h, is_hyb_h, is_onsite_h = determine_work_mode(hybrid_job)
+        self.assertTrue(is_hyb_h)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

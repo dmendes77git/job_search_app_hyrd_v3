@@ -46,6 +46,24 @@ def parse_days_since_posted(posted_val: Any, job_id: str = "") -> Tuple[int, str
         except Exception:
             pass
 
+    # 1b. Check for European / Portuguese date format e.g. 7-10-2026 or 07-10-2026
+    eu_date_match = re.search(r"\b(\d{1,2})-(\d{1,2})-(\d{4})\b", s)
+    if eu_date_match:
+        try:
+            post_d = date(int(eu_date_match.group(3)), int(eu_date_match.group(2)), int(eu_date_match.group(1)))
+            current_d = date.today()
+            diff = (current_d - post_d).days
+            if diff < 0:
+                diff = 0
+            if diff == 0:
+                return 0, "0 days (Posted today)"
+            elif diff == 1:
+                return 1, "1 day ago"
+            else:
+                return diff, f"{diff} days ago"
+        except Exception:
+            pass
+
     # 2. Check for "N days ago" or "N day ago"
     days_m = re.search(r"(\d+)\s*days?\s*ago", s_lower)
     if days_m:

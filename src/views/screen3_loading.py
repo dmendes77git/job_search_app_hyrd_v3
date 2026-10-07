@@ -37,8 +37,8 @@ def render_screen3() -> None:
 
     st.markdown("### ⚡ Screen 3: Concurrent Async Search & Multi-Source Scraping")
     st.markdown(
-        "Hyrd's Multi-Agent pipeline is dispatching autonomous crawlers across 14 major sources: "
-        "**LinkedIn, Ashby, Greenhouse, Lever, SmartRecruiters, JobSpy (Indeed), We Work Remotely, TelecomCareers, ZipRecruiter, Apify, Arbeitnow, Jobicy, RemoteOK, and Remotive**. "
+        "Hyrd's Multi-Agent pipeline is dispatching autonomous crawlers across 17 major sources: "
+        "**LinkedIn, Ashby, Greenhouse, Lever, SmartRecruiters, JobSpy (Indeed), We Work Remotely, TelecomCareers, ZipRecruiter, ITJobs.pt, Net-Empregos, Landing.jobs, Apify, Arbeitnow, Jobicy, RemoteOK, and Remotive**. "
         "Each opportunity is semantically matched against your resume, evaluated for compensation, and ranked by fit."
     )
 
@@ -154,7 +154,7 @@ def render_screen3() -> None:
                     Pipeline Execution Complete
                 </div>
                 <div style="font-size: 0.95rem; color: #14532d;">
-                    Scraped <strong>{total_scraped}</strong> live opportunities concurrently across 14 job networks and ATS systems.
+                    Scraped <strong>{total_scraped}</strong> live opportunities concurrently across 17 job networks and ATS systems.
                     Identified <strong>{len(discovered_jobs)}</strong> high-fit matching roles for your background.
                 </div>
             </div>

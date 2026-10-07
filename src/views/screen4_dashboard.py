@@ -64,7 +64,7 @@ def render_screen4() -> None:
     # Top KPI Metrics Row
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        st.metric(label="Total Roles Scraped", value=f"{total_scraped}", delta="14 Concurrent Scrapers Active")
+        st.metric(label="Total Roles Scraped", value=f"{total_scraped}", delta="17 Concurrent Scrapers Active")
     with m2:
         st.metric(label="High-Fit Matches", value=f"{len(jobs_source)}", delta="Ranked by Fit")
     with m3:
@@ -192,11 +192,17 @@ def render_screen4() -> None:
                 )
 
             # Header Line 2: Company name / number of employees / source tag
-            is_linkedin = "linkedin" in source_label.lower()
-            badge_bg = "#eff6ff" if is_linkedin else "#f1f5f9"
-            badge_color = "#0a66c2" if is_linkedin else "#475569"
-            badge_border = "#bfdbfe" if is_linkedin else "#e2e8f0"
-            badge_icon = "💼" if is_linkedin else "🌐"
+            src_l = source_label.lower()
+            if "linkedin" in src_l:
+                badge_bg, badge_color, badge_border, badge_icon = "#eff6ff", "#0a66c2", "#bfdbfe", "💼"
+            elif "itjobs" in src_l:
+                badge_bg, badge_color, badge_border, badge_icon = "#fdf4ff", "#86198f", "#f5d0fe", "🇵🇹"
+            elif "net-empregos" in src_l or "netempregos" in src_l:
+                badge_bg, badge_color, badge_border, badge_icon = "#f0fdf4", "#15803d", "#bbf7d0", "🇵🇹"
+            elif "landing" in src_l:
+                badge_bg, badge_color, badge_border, badge_icon = "#fff7ed", "#c2410c", "#fed7aa", "🚀"
+            else:
+                badge_bg, badge_color, badge_border, badge_icon = "#f1f5f9", "#475569", "#e2e8f0", "🌐"
 
             is_target = job.get("is_target_company", False)
             target_badge_html = (

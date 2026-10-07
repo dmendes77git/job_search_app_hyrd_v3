@@ -63,7 +63,7 @@ def show_job_scout_dialog(profile: dict) -> None:
             
             existing_ids = {j.get("id") for j in st.session_state.get("discovered_jobs", [])}
             
-            with st.spinner("🤖 Hyrd Scout Agent scanning 14 job channels, cross-referencing ATS boards & synthesizing Morning Digest..."):
+            with st.spinner("🤖 Hyrd Scout Agent scanning 17 job channels, cross-referencing ATS boards & synthesizing Morning Digest..."):
                 result = run_job_scout_cycle(
                     profile=profile,
                     existing_job_ids=existing_ids,
