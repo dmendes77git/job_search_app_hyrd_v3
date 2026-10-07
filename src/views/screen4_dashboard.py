@@ -10,6 +10,7 @@ import streamlit as st
 from src.state import reset_wizard, SCREEN_INPUT, SCREEN_PIPELINE, go_to_screen
 from src.mock_data import MOCK_JOB_RESULTS, SAMPLE_PARSED_PROFILE
 from src.utils.salary_evaluator import evaluate_job_salary
+from src.utils.date_utils import parse_days_since_posted
 from src.components.application_dialogs import (
     show_cv_dialog,
     show_cover_letter_dialog,
@@ -212,6 +213,26 @@ def render_screen4() -> None:
                 f"{target_badge_html}</div>",
                 unsafe_allow_html=True,
             )
+
+            # Days since posted
+            days_count, days_label = parse_days_since_posted(job.get("posted", "Recent"), job_id=job.get("id", ""))
+            day_unit = "day" if days_count == 1 else "days"
+
+            if days_count <= 3:
+                f_bg, f_color, f_border, f_icon = "#ecfdf5", "#047857", "#a7f3d0", "🔥 New"
+            elif days_count <= 14:
+                f_bg, f_color, f_border, f_icon = "#eff6ff", "#1d4ed8", "#bfdbfe", "⏱️ Recent"
+            else:
+                f_bg, f_color, f_border, f_icon = "#f8fafc", "#475569", "#e2e8f0", "📅 Active"
+
+            st.markdown(
+                f"<div style='font-size: 0.88rem; color: #475569; margin-top: -0.1rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap;'>"
+                f"<span>📅 <strong>Days since posted:</strong> <span style='font-weight: 700; color: #0f172a;'>{days_count} {day_unit}</span></span>"
+                f"<span style='background: {f_bg}; color: {f_color}; border: 1px solid {f_border}; padding: 0.1rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;'>"
+                f"{f_icon} ({days_label})</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
             st.divider()
 
             # 2-Column Layout
@@ -244,7 +265,8 @@ def render_screen4() -> None:
                     f"</div>",
                     unsafe_allow_html=True,
                 )
-                st.markdown(f"⏱️ **Posted:** {job['posted']}")
+                posted_extra = f" ({days_count} {day_unit} ago)" if "ago" not in str(job['posted']).lower() and "now" not in str(job['posted']).lower() and "today" not in str(job['posted']).lower() else ""
+                st.markdown(f"⏱️ **Posted:** {job['posted']}{posted_extra}")
 
             with col_right:
                 st.markdown("**JOB DESCRIPTION**")

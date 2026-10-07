@@ -639,5 +639,51 @@ class TestStateManagement(unittest.TestCase):
         self.assertEqual(self.st.session_state.current_screen, self.SCREEN_DASHBOARD)
 
 
+class TestDateFreshnessUtils(unittest.TestCase):
+    """Verifies parsing of job posting freshness and calculation of days since posted."""
+
+    def setUp(self):
+        from src.utils.date_utils import parse_days_since_posted
+        self.parse_days_since_posted = parse_days_since_posted
+
+    def test_relative_days(self):
+        days, label = self.parse_days_since_posted("1 day ago")
+        self.assertEqual(days, 1)
+        self.assertEqual(label, "1 day ago")
+
+        days3, label3 = self.parse_days_since_posted("3 days ago")
+        self.assertEqual(days3, 3)
+        self.assertEqual(label3, "3 days ago")
+
+    def test_relative_weeks_and_months(self):
+        days_w, label_w = self.parse_days_since_posted("2 weeks ago")
+        self.assertEqual(days_w, 14)
+        self.assertIn("14 days ago", label_w)
+
+        days_m, label_m = self.parse_days_since_posted("1 month ago")
+        self.assertEqual(days_m, 30)
+        self.assertIn("30 days ago", label_m)
+
+    def test_today_and_feed_keywords(self):
+        days_now, label_now = self.parse_days_since_posted("Just now")
+        self.assertEqual(days_now, 0)
+        self.assertIn("Posted today", label_now)
+
+        days_zip, label_zip = self.parse_days_since_posted("Active on ZipRecruiter", job_id="test-123")
+        self.assertIn(days_zip, [1, 2])
+        self.assertIn("Active", label_zip)
+
+    def test_iso_dates(self):
+        from datetime import date, timedelta
+        today_iso = date.today().isoformat()
+        days_today, label_today = self.parse_days_since_posted(today_iso)
+        self.assertEqual(days_today, 0)
+
+        four_days_ago_iso = (date.today() - timedelta(days=4)).isoformat()
+        days_4, label_4 = self.parse_days_since_posted(four_days_ago_iso)
+        self.assertEqual(days_4, 4)
+        self.assertEqual(label_4, "4 days ago")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
