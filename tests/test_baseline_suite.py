@@ -373,10 +373,16 @@ class TestJobScraperUtils(unittest.TestCase):
         self.assertIn("rationale", res1)
         self.assertIn("seniority_assessment", res1)
         self.assertGreater(len(res1["strengths"]), 0)
-        self.assertGreater(len(res1["recommendations"]), 0)
+        self.assertIn("gap_to_100", res1)
+        gap1 = res1["gap_to_100"]
+        self.assertGreater(len(gap1["missing_skills"]), 0)
+        self.assertGreater(len(gap1["experience_gaps"]), 0)
+        self.assertGreater(len(gap1["certifications"]), 0)
+        self.assertIn("summary", gap1)
 
         res2 = evaluate_role_match("Junior Marketing Intern", profile)
         self.assertLess(res2["score"], 85)
+        self.assertIn("gap_to_100", res2)
 
         # Verify screen 2 dialog function export
         from src.views.screen2_review import show_recruiter_analysis_dialog

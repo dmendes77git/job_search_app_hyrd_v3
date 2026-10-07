@@ -364,6 +364,112 @@ def evaluate_role_match(
         "Customize screening elevator pitch to highlight alignment with target company scale and engineering challenges.",
     ]
 
+    # 4. Gap Analysis: What is missing to achieve 100% match?
+    cand_skills_flat = " ".join([s.lower() for s in core_skills])
+    
+    if any(k in role_lower for k in ["ai", "agent", "agentic", "llm", "ml", "machine learning", "nlp"]):
+        catalog_skills = [
+            "Evaluation Frameworks (Ragas, TruLens)",
+            "Vector DB Optimization (Qdrant, Milvus)",
+            "Agent Observability (LangSmith, Phoenix)",
+            "Fine-Tuning & PEFT / LoRA",
+            "Model Distillation & Quantization (AWQ/GGUF)",
+            "Multi-Agent Swarm Orchestration",
+        ]
+        catalog_exp = [
+            "Quantified production throughput (e.g. 5M+ tokens/day with latency <1.5s).",
+            "Documented safety guardrails, PII masking, and evaluation benchmarks.",
+            "End-to-end autonomous agent workflow design with human-in-the-loop controls.",
+        ]
+        catalog_certs = [
+            "Google Cloud Professional Machine Learning Engineer",
+            "DeepLearning.AI Production AI & LLM Systems Specialization",
+            "AWS Certified Machine Learning - Specialty",
+        ]
+    elif any(k in role_lower for k in ["data", "analytics", "pipeline", "etl"]):
+        catalog_skills = [
+            "Streaming Architecture (Apache Flink / Kafka)",
+            "Modern Semantic Layer (dbt, Cube)",
+            "Lakehouse Storage (Apache Iceberg, Delta Lake)",
+            "Data Quality Frameworks (Great Expectations, Monte Carlo)",
+            "Schema Registry & Distributed CDC",
+        ]
+        catalog_exp = [
+            "Managing multi-terabyte pipelines with sub-hourly freshness SLAs.",
+            "Authoring enterprise data contracts across federated analytics teams.",
+            "Cloud migration from legacy warehouses to managed Lakehouses.",
+        ]
+        catalog_certs = [
+            "Databricks Certified Data Engineer Professional",
+            "Google Cloud Professional Data Engineer",
+            "Snowflake SnowPro Advanced Architect",
+        ]
+    elif any(k in role_lower for k in ["cloud", "devops", "sre", "infrastructure", "platform"]):
+        catalog_skills = [
+            "Infrastructure as Code (Terraform / OpenTofu)",
+            "Service Mesh (Istio / Linkerd)",
+            "FinOps Cloud Cost Optimization",
+            "Chaos Engineering & Automated Disaster Recovery",
+            "GitOps (ArgoCD, Flux)",
+        ]
+        catalog_exp = [
+            "Operating multi-region active-active clusters with 99.99% uptime.",
+            "Leading SOC2 / ISO 27001 infrastructure security compliance audits.",
+            "Designing automated canary deployments and zero-downtime rollouts.",
+        ]
+        catalog_certs = [
+            "Certified Kubernetes Administrator (CKA)",
+            "AWS Certified Solutions Architect - Professional",
+            "HashiCorp Certified: Terraform Associate",
+        ]
+    else:
+        catalog_skills = [
+            "High-Throughput Distributed Systems (Kafka, gRPC)",
+            "Distributed Caching & Concurrency Control (Redis Enterprise)",
+            "Telemetry & Distributed Tracing (OpenTelemetry)",
+            "Database Query Optimization at Scale",
+            "API Gateway & Zero-Trust Authentication",
+        ]
+        catalog_exp = [
+            "Documented architecture decisions supporting 10x traffic spikes.",
+            "Driving cross-functional technical initiatives across multiple product teams.",
+            "Mentoring senior engineers and defining engineering excellence standards.",
+        ]
+        catalog_certs = [
+            "AWS Certified Solutions Architect - Professional",
+            "Google Cloud Professional Cloud Architect",
+            "Certified Kubernetes Application Developer (CKAD)",
+        ]
+
+    # Filter out skills already in candidate core_skills
+    missing_skills = [
+        s for s in catalog_skills
+        if not any(token in cand_skills_flat for token in s.lower().replace("(", " ").replace(")", " ").split() if len(token) > 3)
+    ][:3]
+    if not missing_skills:
+        missing_skills = catalog_skills[:2]
+
+    # Filter/tailor experience gaps based on current score
+    gap_points = max(2, 100 - final_score)
+    experience_gaps = catalog_exp[:2]
+    if any(st in role_lower for st in ["staff", "lead", "principal", "director"]):
+        experience_gaps.append("Direct evidence of multi-team technical strategy and stakeholder management.")
+
+    certifications = catalog_certs[:2]
+
+    gap_summary = (
+        f"To bridge the remaining {gap_points}% to a 100% match: "
+        f"Spotlight exposure to {missing_skills[0]} and emphasize {experience_gaps[0].lower().rstrip('.')} on your resume and interview talking points."
+    )
+
+    gap_to_100 = {
+        "gap_percentage": gap_points,
+        "missing_skills": missing_skills,
+        "experience_gaps": experience_gaps,
+        "certifications": certifications,
+        "summary": gap_summary,
+    }
+
     return {
         "score": final_score,
         "match_label": match_label,
@@ -375,5 +481,6 @@ def evaluate_role_match(
         "seniority_assessment": seniority_assessment,
         "strengths": strengths,
         "recommendations": recommendations,
+        "gap_to_100": gap_to_100,
     }
 

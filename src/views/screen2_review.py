@@ -66,6 +66,53 @@ def show_recruiter_analysis_dialog(role: str, eval_data: dict, candidate_name: s
         for s in strengths:
             st.markdown(f"- {s}")
 
+    # What is Missing to Achieve 100% Match
+    gap_data = eval_data.get("gap_to_100") or {}
+    missing_skills = gap_data.get("missing_skills", [])
+    experience_gaps = gap_data.get("experience_gaps", [])
+    certifications = gap_data.get("certifications", [])
+    gap_summary = gap_data.get("summary", "")
+
+    st.markdown("---")
+    st.markdown("#### 🎯 What's Missing to Achieve a 100% Match?")
+    if gap_summary:
+        st.markdown(
+            f"""
+            <div style='background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.85rem; font-size: 0.88rem; color: #92400e;'>
+                <strong>Recruiter Diagnostic:</strong> {gap_summary}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    g_col1, g_col2 = st.columns(2, gap="medium")
+    with g_col1:
+        st.markdown("**🛠️ High-Impact Skills & Tools to Add**")
+        if missing_skills:
+            gap_badges = " ".join([
+                f"<span style='display: inline-block; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 3px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin: 2px 4px 4px 0;'>+ {s}</span>"
+                for s in missing_skills
+            ])
+            st.markdown(f"<div style='margin-bottom: 0.5rem;'>{gap_badges}</div>", unsafe_allow_html=True)
+            st.caption("Commonly requested tools for this title not explicitly emphasized on your profile.")
+        else:
+            st.caption("Candidate covers all primary technical requirements.")
+
+        if certifications:
+            st.markdown("<div style='margin-top: 0.75rem;'><strong>📜 Recommended Certifications</strong></div>", unsafe_allow_html=True)
+            for cert in certifications:
+                st.markdown(f"- 🎓 {cert}")
+            st.caption("Credentials that immediately validate senior competence to ATS and recruiters.")
+
+    with g_col2:
+        st.markdown("**📈 Experience & Scale Proof-Points**")
+        if experience_gaps:
+            for exp in experience_gaps:
+                st.markdown(f"- 📌 {exp}")
+            st.caption("Explicitly spotlighting these operational scales in your CV/interview will eliminate recruiter hesitation.")
+
+    st.markdown("---")
+
     if recommendations:
         st.markdown("#### 🚀 Actionable Application Advice")
         for r in recommendations:
