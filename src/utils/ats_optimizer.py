@@ -38,6 +38,15 @@ COMMON_BUSINESS_KEYWORDS = [
     "operations", "process optimization", "sales engineering", "customer success",
 ]
 
+COMMON_PORTUGUESE_KEYWORDS = [
+    "inteligência artificial", "ia", "aprendizagem automática", "aprendizagem profunda",
+    "ciência de dados", "engenharia de software", "desenvolvimento de software",
+    "sistemas distribuídos", "arquitetura de software", "computação na nuvem",
+    "gestão de produto", "gestão de projetos", "metodologias ágeis", "otimização",
+    "segurança informática", "cibersegurança", "bases de dados", "análise de dados",
+    "microsserviços", "testes unitários", "integração contínua", "desenvolvimento web",
+]
+
 # Pre-compiled regex patterns for high-throughput ATS matching
 _TECH_KEYWORD_PATTERNS = [
     (re.compile(r"\b" + re.escape(kw) + r"\b"), kw.title() if len(kw) > 3 else kw.upper())
@@ -47,16 +56,94 @@ _BIZ_KEYWORD_PATTERNS = [
     (re.compile(r"\b" + re.escape(kw) + r"\b"), kw.title())
     for kw in COMMON_BUSINESS_KEYWORDS
 ]
+_PT_KEYWORD_PATTERNS = [
+    (re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE), kw.title())
+    for kw in COMMON_PORTUGUESE_KEYWORDS
+]
 
 _TITLE_SPLIT_RE = re.compile(r"[\s/,-]+")
-_HEADER_SUMMARY_RE = re.compile(r"##\s+(?:targeted\s+)?professional\s+summary|##\s+summary")
-_HEADER_SKILLS_RE = re.compile(r"##\s+(?:prioritized\s+)?(?:technical\s+)?competencies|##\s+skills|##\s+core\s+skills")
-_HEADER_EXPERIENCE_RE = re.compile(r"##\s+(?:relevant\s+)?professional\s+experience|##\s+work\s+experience|##\s+experience")
-_HEADER_EDUCATION_RE = re.compile(r"##\s+education|##\s+credentials|##\s+certifications")
+
+# Multilingual ATS Section Headers (English & Portuguese PT-PT / PT-BR)
+_HEADER_SUMMARY_RE = re.compile(
+    r"##\s+(?:targeted\s+)?professional\s+summary|##\s+summary|"
+    r"##\s+(?:resumo|perfil)(?:\s+profissional)?|##\s+resumo|##\s+perfil",
+    re.IGNORECASE,
+)
+_HEADER_SKILLS_RE = re.compile(
+    r"##\s+(?:prioritized\s+)?(?:technical\s+)?competencies|##\s+skills|##\s+core\s+skills|"
+    r"##\s+(?:competências|competencias|habilidades)(?:\s+(?:técnicas|tecnicas|essenciais|principais))?|"
+    r"##\s+competências\s*(?:&|e)\s*(?:habilidades|aptidões|aptidoes)",
+    re.IGNORECASE,
+)
+_HEADER_EXPERIENCE_RE = re.compile(
+    r"##\s+(?:relevant\s+)?professional\s+experience|##\s+work\s+experience|##\s+experience|"
+    r"##\s+(?:experiência|experiencia)(?:\s+profissional)?|##\s+percurso\s+profissional|"
+    r"##\s+experiência\s+laboral",
+    re.IGNORECASE,
+)
+_HEADER_EDUCATION_RE = re.compile(
+    r"##\s+education|##\s+credentials|##\s+certifications|"
+    r"##\s+(?:educação|educacao|formação|formacao)(?:\s+(?:académica|academica|e\s+credenciais))?|"
+    r"##\s+(?:certificações|certificacoes)",
+    re.IGNORECASE,
+)
 _EMAIL_RE = re.compile(r"[\w\.-]+@[\w\.-]+\.\w+")
 _PHONE_RE = re.compile(r"\+?\d[\d\s\-\(\)]{7,}\d")
-_METRIC_RE = re.compile(r"\b\d+%(?:\b|\s)|\$\d+|\b\d+k\b|\b\d+\+\b")
+_METRIC_RE = re.compile(r"\b\d+%(?:\b|\s)|\$\d+|\b\d+k\b|\b\d+\+\b|€\d+|\b\d+\s*mil\b|\b\d+\s*anos\b")
 _TABLE_RE = re.compile(r"\|.*\|.*\|")
+
+# Stopwords and indicative terms for language detection
+_PORTUGUESE_INDICATORS = {
+    "de", "para", "com", "experiência", "experiencia", "requisitos", "responsabilidades",
+    "funções", "funcoes", "candidatura", "oferecemos", "perfil", "conhecimentos",
+    "desenvolvimento", "equipa", "trabalho", "remoto", "teletrabalho", "híbrido",
+    "hibrido", "empresa", "área", "capacidade", "anos", "localização", "salário",
+    "competências", "projetos", "gestão", "integração", "licenciatura", "mestrado",
+    "emprego", "vaga", "função", "recrutamento", "valorizamos",
+}
+_ENGLISH_INDICATORS = {
+    "with", "experience", "requirements", "responsibilities", "looking", "skills",
+    "team", "remote", "company", "hybrid", "salary", "qualifications", "working",
+    "degree", "master", "years", "seeking", "benefits", "opportunity",
+}
+
+
+def detect_job_language(job: Dict[str, Any]) -> str:
+    """
+    Automatically detects whether a job posting is in Portuguese ('pt-pt') or English ('en').
+    Analyzes:
+      1. Source metadata (ITJobs.pt, Net-Empregos default to pt-pt unless predominantly English).
+      2. Word frequencies across title, description, and tags.
+      3. Location markers (Portugal, Lisboa, Porto, etc.).
+    Returns 'pt-pt' for Portuguese language postings, 'en' for English.
+    """
+    if not job:
+        return "en"
+
+    source = (job.get("source") or "").lower()
+    title = (job.get("title") or "").lower()
+    desc = (job.get("full_description") or job.get("description") or "").lower()
+    location = (job.get("location") or "").lower()
+    tags = " ".join(job.get("tags") or []).lower()
+
+    combined_text = f"{title} {desc} {tags} {location}"
+    words = re.findall(r"\b[\wÀ-ÿ]+\b", combined_text)
+
+    pt_matches = sum(1 for w in words if w in _PORTUGUESE_INDICATORS)
+    en_matches = sum(1 for w in words if w in _ENGLISH_INDICATORS)
+
+    # Specific Portuguese sources bias towards pt-pt if Portuguese vocabulary is detected
+    is_portuguese_portal = any(p in source for p in ["itjobs", "net-empregos", "netempregos"])
+    if is_portuguese_portal and pt_matches >= 3:
+        return "pt-pt"
+
+    # Explicit threshold evaluation
+    if pt_matches > en_matches and pt_matches >= 4:
+        return "pt-pt"
+    if pt_matches >= 8:
+        return "pt-pt"
+
+    return "en"
 
 
 def extract_ats_keywords(job: Dict[str, Any], profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -81,24 +168,29 @@ def extract_ats_keywords(job: Dict[str, Any], profile: Optional[Dict[str, Any]] 
         if pattern.search(text_to_scan):
             found_biz.append(label)
 
+    found_pt = []
+    for pattern, label in _PT_KEYWORD_PATTERNS:
+        if pattern.search(text_to_scan):
+            found_pt.append(label)
+
     # Merge with matched skills from the job object
     for s in matched_skills:
         clean_s = s.strip()
-        if clean_s and clean_s not in found_tech and clean_s not in found_biz:
+        if clean_s and clean_s not in found_tech and clean_s not in found_biz and clean_s not in found_pt:
             found_tech.append(clean_s)
 
     # Extract target role keywords
     title_tokens = [t.title() for t in _TITLE_SPLIT_RE.split(job_title) if len(t) > 2]
 
     # Combine into unique prioritized lists
-    priority_keywords = list(dict.fromkeys(found_tech + found_biz))
+    priority_keywords = list(dict.fromkeys(found_tech + found_biz + found_pt))
     if not priority_keywords and profile:
         priority_keywords = list(profile.get("core_skills", []))[:8]
 
     return {
         "priority_keywords": priority_keywords,
         "title_keywords": title_tokens,
-        "hard_skills": found_tech[:15],
+        "hard_skills": (found_tech + found_pt)[:15],
         "functional_skills": found_biz[:10],
     }
 
@@ -107,11 +199,13 @@ def format_ats_contact_block(
     profile: Dict[str, Any],
     target_role: str = "",
     company: str = "",
+    language: str = "en",
 ) -> str:
     """
     Generate an ATS-safe contact block compliant with parser specifications.
     Parsers (Greenhouse, Lever, Ashby, Workday) require single-line, un-nested text
     containing Name, Title, Location, Phone, Email, and Professional Profile URLs.
+    Supports English and European Portuguese (PT-PT).
     """
     cand_name = (profile.get("full_name") or "Alex Mercer").strip()
     headline = target_role or profile.get("headline", "Senior Technical Professional")
@@ -121,7 +215,10 @@ def format_ats_contact_block(
     linkedin = profile.get("linkedin") or "linkedin.com/in/alex-mercer-ai"
     github = profile.get("github") or "github.com/alex-mercer"
 
-    target_line = f"**Target Role:** {headline}" + (f" | **Target Company:** {company}" if company else "")
+    if language.lower().startswith("pt"):
+        target_line = f"**Cargo Pretendido:** {headline}" + (f" | **Empresa Alvo:** {company}" if company else "")
+    else:
+        target_line = f"**Target Role:** {headline}" + (f" | **Target Company:** {company}" if company else "")
     contact_parts = [loc, phone, email, linkedin]
     if github:
         contact_parts.append(github)
@@ -166,7 +263,7 @@ def audit_ats_cv_compatibility(
     keyword_density_pct = int((len(matched_kws) / max(1, len(priority_keywords))) * 100) if priority_keywords else 95
 
     # 2. Section Heading Compliance
-    # Standard headings expected by ATS parsers
+    # Standard headings expected by ATS parsers (supporting both English and Portuguese)
     standard_headers = {
         "Summary": bool(_HEADER_SUMMARY_RE.search(cv_lower)),
         "Competencies & Skills": bool(_HEADER_SKILLS_RE.search(cv_lower)),
@@ -179,7 +276,8 @@ def audit_ats_cv_compatibility(
     # 3. Contact Info Parseability
     has_email = bool(_EMAIL_RE.search(cv_markdown))
     has_phone = bool(_PHONE_RE.search(cv_markdown))
-    has_location = bool(profile.get("location") or "remote" in cv_lower or "ca" in cv_lower or "ny" in cv_lower)
+    loc_tokens = ["remote", "remoto", "portugal", "lisboa", "porto", "braga", "coimbra", "faro", "aveiro", "teletrabalho", "híbrido", "hibrido", "ca", "ny", "uk", "london", "europe", "europa"]
+    has_location = bool(profile.get("location") or any(k in cv_lower for k in loc_tokens))
     has_links = bool("linkedin" in cv_lower or "github" in cv_lower)
     contact_passed = sum([has_email, has_phone, has_location, has_links])
     contact_score = int((contact_passed / 4) * 100)

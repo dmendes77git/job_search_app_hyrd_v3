@@ -93,7 +93,7 @@ def optimize_query_for_source(query: str, source_name: str) -> str:
     Format query syntax appropriately for each specific scraper/API (Point 1.B):
     - ATS (Ashby, Greenhouse, Lever, SmartRecruiters): Clean core discipline keywords.
     - Boolean boards (LinkedIn, JobSpy): Clean query without noisy parenthesis or stopwords.
-    - Portuguese portals (ITJobs, Net-Empregos, Landing.jobs): Clean tech terms.
+    - Portuguese portals (ITJobs, Net-Empregos, Landing.jobs): Clean tech terms, supporting bilingual PT-PT and EN queries.
     - Aggregators: Clean tag/discipline keywords.
     """
     if not query:
@@ -113,6 +113,32 @@ def optimize_query_for_source(query: str, source_name: str) -> str:
                 return "Product Manager"
             else:
                 return "Software Engineer"
+        return q_clean
+
+    if "net-empregos" in source_lower or "netempregos" in source_lower:
+        # Net-Empregos benefits from concise Portuguese titles or core terms
+        q_lower = q_clean.lower()
+        if "software engineer" in q_lower or "full stack" in q_lower:
+            return "Engenheiro de Software"
+        elif "backend" in q_lower:
+            return "Desenvolvedor Backend"
+        elif "frontend" in q_lower:
+            return "Desenvolvedor Frontend"
+        elif "data engineer" in q_lower:
+            return "Engenheiro de Dados"
+        elif "data scientist" in q_lower:
+            return "Cientista de Dados"
+        elif "product manager" in q_lower:
+            return "Gestor de Produto"
+        elif "ai engineer" in q_lower or "machine learning" in q_lower:
+            return "Inteligência Artificial"
+        return q_clean
+
+    if "itjobs" in source_lower:
+        # ITJobs.pt works effectively with concise tech roles
+        q_lower = q_clean.lower()
+        if "software engineer" in q_lower:
+            return "Software Developer"
         return q_clean
 
     return q_clean
@@ -201,6 +227,7 @@ def search_live_jobs_pipeline(
         tasks.append(("Greenhouse", lambda r=sec_role: fetch_greenhouse_jobs(target_query=optimize_query_for_source(r, "Greenhouse"), target_location=target_loc_str, custom_companies=custom_companies, limit=30)))
         tasks.append(("JobSpy", lambda r=sec_role: fetch_jobspy_jobs(target_query=optimize_query_for_source(r, "JobSpy"), target_location=target_loc_str, is_remote=not is_onsite_only, limit=20)))
         tasks.append(("ITJobs", lambda r=sec_role: fetch_itjobs_jobs(target_query=optimize_query_for_source(r, "ITJobs"), target_location=target_loc_str, limit=20)))
+        tasks.append(("NetEmpregos", lambda r=sec_role: fetch_netempregos_jobs(target_query=optimize_query_for_source(r, "NetEmpregos"), target_location=target_loc_str, limit=20)))
         tasks.append(("LandingJobs", lambda r=sec_role: fetch_landingjobs_jobs(target_query=optimize_query_for_source(r, "LandingJobs"), target_location=target_loc_str, limit=20)))
 
     apify_token = profile.get("apify_api_token") or os.environ.get("APIFY_API_TOKEN")

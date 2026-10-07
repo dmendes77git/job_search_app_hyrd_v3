@@ -4,7 +4,7 @@ import re
 import streamlit as st
 from src.agents.application_agent import generate_customized_cv
 from src.utils.document_exporter import create_cv_pdf, create_cv_docx
-from src.utils.ats_optimizer import audit_ats_cv_compatibility
+from src.utils.ats_optimizer import audit_ats_cv_compatibility, detect_job_language
 from src.utils.user_manager import flush_session_to_user_workspace
 
 
@@ -21,9 +21,18 @@ def show_cv_dialog(job: dict, profile: dict) -> None:
     api_key = st.session_state.get("gemini_api_key")
     pref_model = st.session_state.get("gemini_model")
 
+    detected_lang = detect_job_language(job)
+    lang_state_key = f"cv_language_choice_{job_id}"
+    if lang_state_key not in st.session_state:
+        st.session_state[lang_state_key] = "pt-pt" if detected_lang.startswith("pt") else "en"
+
+    active_lang = st.session_state[lang_state_key]
+
     if job_id not in st.session_state.customized_cvs:
         with st.spinner(f"🤖 Hyrd Agent analyzing ATS requirements & tailoring CV for {job.get('company', 'Company')}..."):
-            cv_text = generate_customized_cv(job, profile, api_key=api_key, preferred_model=pref_model)
+            cv_text = generate_customized_cv(
+                job, profile, api_key=api_key, preferred_model=pref_model, language=active_lang
+            )
             st.session_state.customized_cvs[job_id] = cv_text
             flush_session_to_user_workspace()
     else:
@@ -35,6 +44,44 @@ def show_cv_dialog(job: dict, profile: dict) -> None:
     grade = audit["grade"]
     badge_bg = audit["badge_bg"]
     badge_color = audit["badge_color"]
+
+    # Language Selector Controls
+    col_lang, col_lang_info = st.columns([1.3, 2.7])
+    with col_lang:
+        lang_opts = ["🇵🇹 Português (PT-PT)", "🇺🇸 English"]
+        curr_idx = 0 if active_lang == "pt-pt" else 1
+        selected_label = st.selectbox(
+            "🌐 Document Language / Idioma:",
+            options=lang_opts,
+            index=curr_idx,
+            key=f"select_lang_cv_{job_id}",
+        )
+        new_lang = "pt-pt" if "Português" in selected_label else "en"
+        if new_lang != active_lang:
+            st.session_state[lang_state_key] = new_lang
+            with st.spinner(f"Re-generating CV in {selected_label}..."):
+                st.session_state.customized_cvs[job_id] = generate_customized_cv(
+                    job, profile, api_key=api_key, preferred_model=pref_model, language=new_lang
+                )
+                flush_session_to_user_workspace()
+                st.toast(f"CV updated to {selected_label}!")
+                st.rerun()
+
+    with col_lang_info:
+        if active_lang == "pt-pt":
+            st.markdown(
+                "<div style='margin-top: 1.6rem; font-size: 0.82rem; color: #166534; background: #f0fdf4; padding: 6px 12px; border-radius: 6px; border: 1px solid #bbf7d0;'>"
+                "🇵🇹 <strong>Norma PT-PT Ativa:</strong> Redigido de acordo com o Acordo Ortográfico e cabeçalhos ATS padrão para o mercado europeu."
+                "</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                "<div style='margin-top: 1.6rem; font-size: 0.82rem; color: #1e40af; background: #eff6ff; padding: 6px 12px; border-radius: 6px; border: 1px solid #bfdbfe;'>"
+                "🇺🇸 <strong>English ATS Active:</strong> Optimized with standard international ATS headers & keyword density."
+                "</div>",
+                unsafe_allow_html=True,
+            )
 
     # ATS Top Banner
     st.markdown(
@@ -157,7 +204,7 @@ def show_cv_dialog(job: dict, profile: dict) -> None:
         if st.button("🔄 Regenerate", key=f"regen_cv_{job_id}", use_container_width=True):
             with st.spinner("Re-analyzing job requirements and regenerating ATS-optimized CV..."):
                 st.session_state.customized_cvs[job_id] = generate_customized_cv(
-                    job, profile, api_key=api_key, preferred_model=pref_model
+                    job, profile, api_key=api_key, preferred_model=pref_model, language=active_lang
                 )
                 flush_session_to_user_workspace()
                 st.toast("CV regenerated with ATS optimization!")

@@ -22,10 +22,12 @@ class TestAtsOptimizer(unittest.TestCase):
             extract_ats_keywords,
             format_ats_contact_block,
             audit_ats_cv_compatibility,
+            detect_job_language,
         )
         self.extract_ats_keywords = extract_ats_keywords
         self.format_ats_contact_block = format_ats_contact_block
         self.audit_ats_cv_compatibility = audit_ats_cv_compatibility
+        self.detect_job_language = detect_job_language
 
         self.mock_job = {
             "title": "Senior AI Platform Engineer",
@@ -58,6 +60,45 @@ class TestAtsOptimizer(unittest.TestCase):
         self.assertIn("SARAH CONNOR", block.upper())
         self.assertIn("sarah.connor@example.com", block)
         self.assertIn("San Francisco, CA", block)
+        self.assertIn("Target Role:", block)
+
+    def test_format_ats_contact_block_portuguese(self):
+        block = self.format_ats_contact_block(self.mock_profile, target_role="Engenheiro de Software", company="TechPT", language="pt-pt")
+        self.assertIn("SARAH CONNOR", block.upper())
+        self.assertIn("sarah.connor@example.com", block)
+        self.assertIn("Cargo Pretendido:", block)
+        self.assertIn("**Empresa Alvo:** TechPT", block)
+
+    def test_detect_job_language(self):
+        pt_job = {
+            "title": "Engenheiro de Software Sénior",
+            "company": "Empresa Tecnológica",
+            "source": "ITJobs.pt",
+            "location": "Lisboa, Portugal",
+            "description": "Procuramos um profissional com sólida experiência em desenvolvimento de software e microsserviços. Requisitos essenciais e integração em equipa dinâmica.",
+            "tags": ["lisboa", "desenvolvimento", "remoto"],
+        }
+        self.assertEqual(self.detect_job_language(pt_job), "pt-pt")
+
+        net_job = {
+            "title": "Programador Python",
+            "company": "Startup",
+            "source": "Net-Empregos",
+            "location": "Porto, Portugal",
+            "description": "Excelente oportunidade de emprego. Oferecemos vencimento compatível com a experiência e trabalho híbrido.",
+            "tags": ["emprego", "porto"],
+        }
+        self.assertEqual(self.detect_job_language(net_job), "pt-pt")
+
+        en_job = {
+            "title": "Senior AI Systems Engineer",
+            "company": "Tech Labs",
+            "source": "Greenhouse",
+            "location": "Remote",
+            "description": "Looking for an experienced engineer with deep knowledge of Kubernetes, Python, and distributed systems.",
+            "tags": ["remote", "python"],
+        }
+        self.assertEqual(self.detect_job_language(en_job), "en")
 
     def test_audit_ats_cv_compatibility(self):
         sample_cv = """# Sarah Connor
@@ -81,6 +122,50 @@ Senior AI Platform Engineer with 8+ years scaling Python, Docker, Kubernetes, an
         self.assertIn("compliance_checks", audit)
         self.assertGreaterEqual(audit["ats_score"], 60)
         self.assertEqual(len(audit["compliance_checks"]), 5)
+
+    def test_audit_ats_cv_compatibility_portuguese(self):
+        sample_pt_cv = """# Sarah Connor
+**Cargo Pretendido:** Engenheiro de Software | **Empresa Alvo:** TechPT
+sarah.connor@example.com • +351 912 345 678 • Lisboa, Portugal • linkedin.com/in/sarahconnor
+
+---
+
+## RESUMO PROFISSIONAL
+Engenheiro de Software Sénior com mais de 8 anos de experiência comprovada no desenvolvimento de microsserviços em Python, Docker e Kubernetes, alcançando melhorias de desempenho de 45% e liderando projetos críticos com 99,9% de disponibilidade.
+
+---
+
+## COMPETÊNCIAS TÉCNICAS & HABILIDADES
+- **Linguagens e Frameworks:** Python, Docker, Kubernetes, FastAPI, PostgreSQL, CI/CD, microsserviços, inteligência artificial
+
+---
+
+## EXPERIÊNCIA PROFISSIONAL
+### Engenheiro de Software Sénior | Empresa Tecnológica
+*Janeiro de 2021 - Presente | Lisboa, Portugal (Remoto)*
+- Otimizou o débito operacional dos serviços em 60% através da implementação de arquiteturas orientadas a eventos.
+- Liderou uma equipa técnica distribuída de 5 engenheiros, reduzindo o tempo de entrega de novas funcionalidades em 3.5x.
+
+---
+
+## FORMAÇÃO ACADÉMICA & CERTIFICAÇÕES
+- **Licenciatura em Engenharia Informática** — Universidade de Lisboa
+- **Certificação Google Cloud Professional Data Engineer**
+"""
+        pt_job = {
+            "title": "Engenheiro de Software",
+            "company": "TechPT",
+            "description": "Procuramos Engenheiro de Software com experiência em Python, Docker, Kubernetes e microsserviços.",
+            "tags": ["Python", "Docker", "Kubernetes", "Microsserviços"],
+            "matched_skills": ["Python", "Docker", "Kubernetes"],
+        }
+        audit = self.audit_ats_cv_compatibility(sample_pt_cv, pt_job, self.mock_profile)
+        self.assertIn("ats_score", audit)
+        self.assertGreaterEqual(audit["ats_score"], 85)
+        # Verify all 4 standard headings were recognized under Portuguese naming
+        heading_check = next((c for c in audit["compliance_checks"] if "Section Headings" in c["name"]), None)
+        self.assertIsNotNone(heading_check)
+        self.assertTrue(heading_check["status"])
 
 
 class TestDocumentExporter(unittest.TestCase):
@@ -901,6 +986,87 @@ class TestMatchingAndSearchEnhancements(unittest.TestCase):
         self.assertIn("missing_skills", job)
         self.assertIn("Kubernetes", job["missing_skills"])
         self.assertIn("Kafka", job["missing_skills"])
+
+
+class TestPortugueseApplicationAndScraping(unittest.TestCase):
+    """Verifies Portuguese job scraping optimizations, language detection, and PT-PT CV & Cover Letter generation."""
+
+    def setUp(self):
+        from src.agents.application_agent import (
+            generate_customized_cv,
+            generate_customized_cover_letter,
+        )
+        from src.agents.matching.taxonomy import expand_role_synonyms, ROLE_SYNONYMS
+        from src.agents.job_scraper_agent import optimize_query_for_source
+
+        self.generate_customized_cv = generate_customized_cv
+        self.generate_customized_cover_letter = generate_customized_cover_letter
+        self.expand_role_synonyms = expand_role_synonyms
+        self.ROLE_SYNONYMS = ROLE_SYNONYMS
+        self.optimize_query_for_source = optimize_query_for_source
+
+        self.mock_pt_job = {
+            "id": "itjobs_9999",
+            "title": "Engenheiro de Software Sénior",
+            "company": "Critical TechWorks",
+            "location": "Lisboa, Portugal (Híbrido)",
+            "description": "Procuramos um Engenheiro de Software para integrar a nossa equipa de desenvolvimento. Experiência sólida em microsserviços, Python, Docker e Kubernetes.",
+            "source": "ITJobs.pt",
+            "matched_skills": ["Python", "Docker", "Kubernetes", "Microsserviços"],
+            "key_reasons": ["Forte experiência em microsserviços e sistemas distribuídos"],
+        }
+        self.mock_profile = {
+            "full_name": "Tiago Silva",
+            "headline": "Engenheiro de Software Sénior",
+            "location": "Porto, Portugal",
+            "email": "tiago.silva@example.pt",
+            "phone": "+351 912 345 678",
+            "core_skills": ["Python", "Docker", "Kubernetes", "FastAPI", "PostgreSQL"],
+            "experience_highlights": [
+                "Liderou o desenvolvimento de microsserviços reduzindo a latência em 40%.",
+                "Arquiteto de soluções cloud com 99,9% de disponibilidade operacional.",
+            ],
+        }
+
+    def test_generate_customized_cv_pt_pt(self):
+        cv = self.generate_customized_cv(self.mock_pt_job, self.mock_profile, language="pt-pt")
+        self.assertIn("# TIAGO SILVA", cv)
+        self.assertIn("Cargo Pretendido:", cv)
+        self.assertIn("**Empresa Alvo:** Critical TechWorks", cv)
+        self.assertIn("## RESUMO PROFISSIONAL", cv)
+        self.assertIn("## COMPETÊNCIAS TÉCNICAS & HABILIDADES", cv)
+        self.assertIn("## EXPERIÊNCIA PROFISSIONAL", cv)
+        self.assertIn("## FORMAÇÃO ACADÉMICA & CERTIFICAÇÕES", cv)
+        # Verify European Portuguese vocabulary
+        self.assertIn("equipa", cv.lower())
+        self.assertIn("utilizadores", cv.lower())
+
+    def test_generate_customized_cover_letter_pt_pt(self):
+        cl = self.generate_customized_cover_letter(self.mock_pt_job, self.mock_profile, language="pt-pt")
+        self.assertIn("Tiago Silva", cl)
+        self.assertIn("ASSUNTO: Candidatura à vaga de Engenheiro de Software Sénior (Referência ATS) — Critical TechWorks", cl)
+        self.assertIn("Exma. Equipa de Recrutamento", cl)
+        self.assertIn("equipa", cl.lower())
+        self.assertIn("Com os melhores cumprimentos", cl)
+
+    def test_role_synonyms_portuguese(self):
+        expanded = self.expand_role_synonyms("engenheiro de software")
+        expanded_lower = [e.lower() for e in expanded]
+        self.assertTrue(any(k in expanded_lower for k in ["software engineer", "desenvolvedor", "programador"]))
+
+        dev_expanded = self.expand_role_synonyms("desenvolvedor")
+        dev_expanded_lower = [e.lower() for e in dev_expanded]
+        self.assertTrue(any(k in dev_expanded_lower for k in ["software developer", "programador", "software engineer"]))
+
+    def test_optimize_query_for_portuguese_portals(self):
+        q_net = self.optimize_query_for_source("Software Engineer (Senior)", "Net-Empregos")
+        self.assertEqual(q_net, "Engenheiro de Software")
+
+        q_net_backend = self.optimize_query_for_source("Backend Developer", "NetEmpregos")
+        self.assertEqual(q_net_backend, "Desenvolvedor Backend")
+
+        q_itjobs = self.optimize_query_for_source("Software Engineer (Remote)", "ITJobs")
+        self.assertEqual(q_itjobs, "Software Developer")
 
 
 if __name__ == "__main__":
