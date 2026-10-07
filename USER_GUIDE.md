@@ -263,13 +263,17 @@ The platform aggregates opportunities across 17 distinct global and regional sou
 | **16** | **Net-Empregos** | Largest Portuguese job board across all districts and sectors | **On-site, Hybrid & Remote (Portugal nationwide)** | ISO-8859-1 localized HTML crawler with date & district parsing (`/pesquisa-empregos.asp`) |
 | **17** | **Landing.jobs** | Lisbon tech hub scale-ups, European tech, and remote opportunities | **Remote & Hybrid (Portugal & Europe)** | Semantic card scraper with transparent EUR/USD salary bands (`/jobs`) |
 
-### How Semantic Fit Scoring & Pre-Filtering Works
-Each scraped posting is evaluated by the **Semantic Matcher**:
-1. **Negative Keyword Rejection (v2 New)**: Before scoring, any opportunity containing any of your specified negative keywords in its title, company, or description is automatically excluded.
-2. **Title & Seniority Alignment (0–45 pts)**: Matches target role keywords, seniority tokens (*Senior, Staff, Principal, Lead, Director*), and career trajectory.
-3. **Core Competency Overlap (0–35 pts)**: Compares required technologies and competencies against your verified CV skills.
-4. **Location & Work-Mode Fit (0–20 pts)**: Validates remote eligibility or matches on-site/hybrid positions against your target country/city (with native Portuguese district and work-mode terminology support: *Lisboa, Porto, Coimbra, Braga, Aveiro, Remoto, Teletrabalho, Híbrido*).
-5. **Dream Company Priority Boost (v2 New)**: Positions from your target dream employers receive an automatic +6 fit score boost and special justification tags.
+### How Multi-Dimensional Semantic Fit Scoring & Search Works
+Each scraped posting is evaluated by the **Multi-Dimensional Semantic Matcher**:
+1. **Negative Keyword Rejection**: Before scoring, any opportunity containing any of your specified negative keywords in its title, company, or description is automatically excluded.
+2. **Title & Seniority Alignment (0–45 pts)**: Matches target role keywords, seniority tokens (*Senior, Staff, Principal, Lead, Director*), and career trajectory across industry-standard role synonyms (*AI Engineer* <-> *Machine Learning* <-> *LLM Engineer*).
+3. **Core Anchors vs. Secondary Skills Overlap (0–35 pts)**: Distinguishes primary career anchor competencies (+6 pts each) from secondary tools (+2 pts each), penalizing roles that miss all primary anchors.
+4. **Freshness & Recency Boost (-3 to +4 pts)**: Rewards newly posted requisitions (+4 pts for $\le 3$ days, +2 pts for $\le 7$ days) and marks aging positions (>21 days) with late-stage advisories.
+5. **Experience & Leveling (YoE) Calibration (-8 to +3 pts)**: Automatically extracts required Years of Experience (YoE) and scores candidate leveling with stretch opportunity bonuses or overqualification adjustments.
+6. **Salary Fit Factor (-4 to +3 pts)**: Evaluates offered compensation against candidate's stated target minimum salary.
+7. **Location & Work-Mode Fit (0–20 pts)**: Validates remote eligibility or matches on-site/hybrid positions against your target country/city (with native Portuguese district and work-mode terminology support: *Lisboa, Porto, Coimbra, Braga, Aveiro, Remoto, Teletrabalho, Híbrido*).
+8. **Dream Company & Direct ATS Priority Boost**: Positions from your target dream employers receive an automatic +6 fit score boost, and unmediated Direct ATS postings (Ashby, Greenhouse, Lever, SmartRecruiters) receive a +2 priority boost.
+9. **Two-Pass Hybrid Gemini Reranking**: When Gemini is active, top candidates are analyzed with Gemini Flash for culture, team scope, and personalized 1-sentence recruiter verdicts.
 - **Fit Badges**:
   - 🟢 **90% - 100%**: Exceptional Match
   - 🔵 **82% - 89%**: High Match
@@ -290,14 +294,22 @@ Screen 4 displays your ranked opportunities with filtering tools and application
 - **Keyword Search**: Filter dynamically across job titles, company names, or required skills.
 - **Minimum Fit Score Slider**: Adjust threshold (e.g., 75% to 95%).
 - **Work Mode Filter**: Toggle between *All*, *Remote Only*, *Hybrid*, or *On-site*.
+- **Salary Rank Filter**: Filter by *Within Market Standard & Above* or *Above Market Only*.
+- **Source Channel Filter**: Filter by *Direct ATS Only (Ashby, Greenhouse, Lever, SmartRecruiters)*, *Portuguese Portals Only (ITJobs, Net-Empregos, Landing.jobs)*, or *Remote Hubs Only*.
 
-### 3. Job Badges & Freshness Indicators
+### 3. Job Badges & Trust Indicators
 - **⭐ Target Dream Company**: Highlighted green badge identifying positions from companies specified in your custom target employer list.
-- **Network Source Badge**: Visual badge distinguishing source origins (LinkedIn, Ashby, Greenhouse, Lever, SmartRecruiters, JobSpy, etc.).
+- **⚡ Direct ATS Official Submission**: Distinctive purple trust badge identifying postings directly hosted on company ATS systems with no recruiter middlemen.
+- **Network Source Badge**: Visual badge distinguishing source origins (LinkedIn, Ashby, Greenhouse, Lever, SmartRecruiters, ITJobs.pt, Net-Empregos, Landing.jobs, etc.).
 - **📅 Days Since Posted Indicator**: Positioned directly below `📍 Location:`, displaying the numeric elapsed days since the position was posted, accompanied by color-coded freshness badges:
   - `🔥 New (<= 3 days)`: Just published opportunities.
   - `⏱️ Recent (4–14 days)`: Actively recruiting roles within the standard hiring window.
   - `📅 Active (> 14 days)`: Standing opportunities or extended requisition searches.
+
+### 4. Tech Stack Alignment Matrix (Visual Skill Match Chips)
+Each job card presents an interactive technology matrix directly beside the job description:
+- 🟢 **MATCHED TECH**: Highlighted green pill chips showing core technologies from the job that directly match your CV (`✓ Python`, `✓ FastAPI`, `✓ Kubernetes`).
+- 🔴 **GROWTH TECH**: Highlighted rose pill chips identifying valuable technical competencies mentioned in the job description that you can target for career development (`+ Terraform`, `+ AWS`).
   - Normalizes heterogeneous source formats including ISO timestamps (`2026-10-02`), relative durations (*3 days ago, 2 weeks ago, 1 month ago*), and ATS active feeds (*Active on ZipRecruiter, Active on Ashby*).
 
 ### 4. Geographic Salary Evaluator & Market Benchmarking

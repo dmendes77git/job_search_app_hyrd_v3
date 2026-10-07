@@ -107,7 +107,7 @@ def render_screen4() -> None:
 
     # Filters and Controls
     with st.expander("🔍 Filter & Search Opportunities", expanded=False):
-        fcol1, fcol2, fcol3, fcol4 = st.columns(4)
+        fcol1, fcol2, fcol3, fcol4, fcol5 = st.columns(5)
         with fcol1:
             search_query = st.text_input("Filter by Keyword / Company / Domain", placeholder="e.g. Finance, Marketing, Python, Toast, Berlin...")
         with fcol2:
@@ -116,6 +116,8 @@ def render_screen4() -> None:
             loc_filter = st.selectbox("Work Mode Filter", ["All Work Modes", "Remote Only", "Hybrid Only", "On-site Only"])
         with fcol4:
             salary_filter = st.selectbox("Salary Rank Filter", ["All Salary Ranks", "Within Market Standard & Above", "Above Market Only"])
+        with fcol5:
+            source_type_filter = st.selectbox("Source Channel", ["All Channels", "Direct ATS Only", "Portuguese Portals Only", "Remote Hubs Only"])
 
     # Filter job results based on controls
     filtered_jobs = []
@@ -139,6 +141,14 @@ def render_screen4() -> None:
         elif loc_filter == "Hybrid Only" and "hybrid" not in job_type_lower:
             continue
         elif loc_filter == "On-site Only" and "on-site" not in job_type_lower:
+            continue
+
+        src_lower = job.get("source", "").lower()
+        if source_type_filter == "Direct ATS Only" and not (job.get("is_direct_ats") or any(ats in src_lower for ats in ["ashby", "greenhouse", "lever", "smartrecruiters"])):
+            continue
+        elif source_type_filter == "Portuguese Portals Only" and not any(pt in src_lower for pt in ["itjobs", "net-empregos", "netempregos", "landing"]):
+            continue
+        elif source_type_filter == "Remote Hubs Only" and not any(rh in src_lower for rh in ["remoteok", "remotive", "weworkremotely", "jobicy"]):
             continue
 
         # Evaluate proposed salary against candidate profile, preferences, and target location market benchmarks
@@ -191,8 +201,10 @@ def render_screen4() -> None:
                     unsafe_allow_html=True,
                 )
 
-            # Header Line 2: Company name / number of employees / source tag
+            # Header Line 2: Company name / number of employees / source tag / Direct ATS Trust Tag (Point 3.B)
             src_l = source_label.lower()
+            is_direct_ats = job.get("is_direct_ats") or any(ats in src_l for ats in ["ashby", "greenhouse", "lever", "smartrecruiters"])
+
             if "linkedin" in src_l:
                 badge_bg, badge_color, badge_border, badge_icon = "#eff6ff", "#0a66c2", "#bfdbfe", "💼"
             elif "itjobs" in src_l:
@@ -211,11 +223,18 @@ def render_screen4() -> None:
                 if is_target else ""
             )
 
+            direct_ats_badge_html = (
+                "<span style='background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px;'>"
+                "⚡ Direct ATS Official Submission</span>"
+                if is_direct_ats else ""
+            )
+
             st.markdown(
                 f"<div style='color: #2563eb; font-weight: 600; font-size: 1rem; margin-top: -0.65rem; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;'>"
                 f"<span>{job['company']} &nbsp;/&nbsp; {job['company_size']}</span>"
                 f"<span style='background: {badge_bg}; color: {badge_color}; border: 1px solid {badge_border}; font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 4px;'>"
                 f"{badge_icon} {source_label}</span>"
+                f"{direct_ats_badge_html}"
                 f"{target_badge_html}</div>",
                 unsafe_allow_html=True,
             )
@@ -276,6 +295,33 @@ def render_screen4() -> None:
             with col_right:
                 st.markdown("**JOB DESCRIPTION**")
                 st.write(job["description"])
+
+                # Tech Stack Alignment Matrix (Point 3.A: Visual "Skill Match Chips")
+                matched_skills_list = job.get("matched_skills", [])
+                missing_skills_list = job.get("missing_skills", [])
+
+                chips_html_parts = []
+                if matched_skills_list:
+                    matched_chips = " ".join([
+                        f"<span style='background: #dcfce7; color: #15803d; border: 1px solid #86efac; padding: 0.18rem 0.55rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 600; white-space: nowrap;'>✓ {s}</span>"
+                        for s in matched_skills_list[:6]
+                    ])
+                    chips_html_parts.append(f"<div style='margin-bottom: 0.35rem;'><span style='font-size: 0.78rem; font-weight: 700; color: #166534; margin-right: 6px;'>🟢 MATCHED TECH:</span>{matched_chips}</div>")
+
+                if missing_skills_list:
+                    missing_chips = " ".join([
+                        f"<span style='background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; padding: 0.18rem 0.55rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 600; white-space: nowrap;'>+ {s}</span>"
+                        for s in missing_skills_list[:4]
+                    ])
+                    chips_html_parts.append(f"<div><span style='font-size: 0.78rem; font-weight: 700; color: #9f1239; margin-right: 6px;'>🔴 GROWTH TECH:</span>{missing_chips}</div>")
+
+                if chips_html_parts:
+                    st.markdown(
+                        f"<div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.5rem 0.75rem; margin-top: 0.6rem;'>"
+                        f"{''.join(chips_html_parts)}"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
 
             st.divider()
 

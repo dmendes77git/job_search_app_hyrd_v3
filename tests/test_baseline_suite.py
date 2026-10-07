@@ -749,5 +749,160 @@ class TestPortugueseScrapers(unittest.TestCase):
         self.assertTrue(is_hyb_h)
 
 
+class TestMatchingAndSearchEnhancements(unittest.TestCase):
+    """Verifies Points 1, 2, and 3: Search Query Optimization, Multi-Dimensional Scoring, and Tech Stack Matrix."""
+
+    def test_role_synonyms_and_query_optimization(self):
+        from src.agents.matching.scoring import expand_role_synonyms
+        from src.agents.job_scraper_agent import optimize_query_for_source
+
+        # Test Synonym Expansion (Point 1.C)
+        syns = expand_role_synonyms("Senior AI Engineer")
+        self.assertIn("Machine Learning Engineer", syns)
+        self.assertIn("Llm Engineer", syns)
+
+        # Test Query Optimization for ATS vs Boolean boards (Point 1.B)
+        ats_q = optimize_query_for_source("Senior Staff Generative AI Software Engineer (Remote Only)", "Ashby")
+        self.assertEqual(ats_q, "AI Engineer")
+
+        clean_q = optimize_query_for_source("Senior Python Engineer (US Remote)", "LinkedIn")
+        self.assertEqual(clean_q, "Senior Python Engineer")
+
+    def test_freshness_decay_boost(self):
+        from src.agents.matching.scoring import calculate_semantic_fit
+
+        profile = {
+            "target_role": "Python Developer",
+            "core_skills": ["Python", "FastAPI", "Docker"],
+            "work_mode": "Remote Only",
+        }
+        # Hot job (0 days / today)
+        job_hot = {
+            "title": "Python Developer",
+            "company": "FastTech",
+            "location": "Remote",
+            "description": "Python, FastAPI development",
+            "posted": "today",
+        }
+        # Stale job (>21 days)
+        job_stale = {
+            "title": "Python Developer",
+            "company": "SlowCorp",
+            "location": "Remote",
+            "description": "Python, FastAPI development",
+            "posted": "30 days ago",
+        }
+        score_hot, _, reasons_hot, _ = calculate_semantic_fit(job_hot, profile, [])
+        score_stale, _, reasons_stale, _ = calculate_semantic_fit(job_stale, profile, [])
+
+        self.assertGreater(score_hot, score_stale)
+        self.assertTrue(any("Fresh requisition" in r or "Hot" in r for r in reasons_hot))
+        self.assertTrue(any("Aging" in r for r in reasons_stale))
+
+    def test_core_anchor_vs_secondary_skill_weighting(self):
+        from src.agents.matching.scoring import calculate_semantic_fit
+
+        profile = {
+            "target_role": "AI Engineer",
+            "core_skills": ["PyTorch", "Python", "LLM", "Docker", "Git", "Jira"],
+            "work_mode": "Remote Only",
+        }
+        # Job matching primary core anchors (PyTorch, Python, LLM)
+        job_anchor = {
+            "title": "AI Engineer",
+            "location": "Remote",
+            "description": "Building agentic systems with PyTorch and Python and LLM",
+        }
+        # Job matching only secondary administrative tools (Git, Jira)
+        job_secondary = {
+            "title": "AI Engineer",
+            "location": "Remote",
+            "description": "Project management tracking with Git and Jira",
+        }
+        score_anchor, matched_anchor, _, _ = calculate_semantic_fit(job_anchor, profile, [])
+        score_sec, matched_sec, _, _ = calculate_semantic_fit(job_secondary, profile, [])
+
+        self.assertGreater(score_anchor, score_sec)
+        self.assertIn("PyTorch", matched_anchor)
+
+    def test_years_experience_leveling_calibration(self):
+        from src.agents.matching.scoring import calculate_semantic_fit, extract_required_years_experience
+
+        self.assertEqual(extract_required_years_experience("Requires minimum 5+ years of relevant experience"), 5)
+        self.assertEqual(extract_required_years_experience("3-5 yrs experience in software"), 3)
+
+        senior_profile = {
+            "target_role": "Software Engineer",
+            "years_of_experience": "8+ years",
+            "core_skills": ["Java", "Spring Boot"],
+        }
+        job_matching_level = {
+            "title": "Software Engineer",
+            "location": "Remote",
+            "description": "Requires 5+ years of hands-on Java development with Spring Boot",
+        }
+        job_too_junior = {
+            "title": "Software Engineer",
+            "location": "Remote",
+            "description": "Entry level role requiring 1 year of experience in Java",
+        }
+        score_level, _, reasons_level, _ = calculate_semantic_fit(job_matching_level, senior_profile, [])
+        score_jun, _, reasons_jun, _ = calculate_semantic_fit(job_too_junior, senior_profile, [])
+
+        self.assertGreater(score_level, score_jun)
+        self.assertTrue(any("Leveling match" in r for r in reasons_level))
+
+    def test_salary_fit_factor(self):
+        from src.agents.matching.scoring import calculate_semantic_fit
+
+        profile_high_sal = {
+            "target_role": "Backend Engineer",
+            "preferred_min_salary": "$150,000",
+            "core_skills": ["Go", "Kubernetes"],
+        }
+        job_good_sal = {
+            "title": "Backend Engineer",
+            "location": "Remote",
+            "salary": "$160,000 - $185,000",
+            "description": "Go microservices in Kubernetes",
+        }
+        job_low_sal = {
+            "title": "Backend Engineer",
+            "location": "Remote",
+            "salary": "$60,000 - $75,000",
+            "description": "Go microservices in Kubernetes",
+        }
+        score_good, _, reasons_good, _ = calculate_semantic_fit(job_good_sal, profile_high_sal, [])
+        score_low, _, reasons_low, _ = calculate_semantic_fit(job_low_sal, profile_high_sal, [])
+
+        self.assertGreater(score_good, score_low)
+        self.assertTrue(any("Compensation alignment" in r for r in reasons_good))
+        self.assertTrue(any("Compensation advisory" in r for r in reasons_low))
+
+    def test_tech_stack_extraction_and_missing_skills(self):
+        from src.agents.matching.scoring import calculate_semantic_fit, extract_tech_skills
+
+        skills = extract_tech_skills("We build with Python, PyTorch, Docker, Kubernetes, Kafka, and Redis.")
+        self.assertIn("Python", skills)
+        self.assertIn("Docker", skills)
+        self.assertIn("Kafka", skills)
+
+        profile = {
+            "target_role": "ML Engineer",
+            "core_skills": ["Python", "PyTorch"],
+        }
+        job = {
+            "title": "ML Engineer",
+            "location": "Remote",
+            "description": "Build ML microservices with Python, PyTorch, Kubernetes, and Kafka.",
+        }
+        calculate_semantic_fit(job, profile, [])
+
+        self.assertIn("missing_skills", job)
+        self.assertIn("Kubernetes", job["missing_skills"])
+        self.assertIn("Kafka", job["missing_skills"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

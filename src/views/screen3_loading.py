@@ -33,6 +33,8 @@ def render_screen3() -> None:
         profile["target_roles"] = st.session_state["selected_recommended_roles"]
     if st.session_state.get("apify_api_token"):
         profile["apify_api_token"] = st.session_state["apify_api_token"]
+    if st.session_state.get("gemini_api_key"):
+        profile["gemini_api_key"] = st.session_state["gemini_api_key"]
 
 
     st.markdown("### ⚡ Screen 3: Concurrent Async Search & Multi-Source Scraping")

@@ -10,6 +10,7 @@ Modular Architecture:
 
 import logging
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Optional, Tuple, Callable
 
@@ -19,6 +20,7 @@ from src.agents.matching.scoring import (
     check_job_country_match,
     determine_work_mode,
     calculate_semantic_fit,
+    rerank_top_jobs_with_gemini,
 )
 from src.agents.scrapers import (
     DEFAULT_HEADERS,
@@ -53,12 +55,14 @@ __all__ = [
     "HTTP_HEADERS",
     "DEFAULT_HEADERS",
     "COUNTRY_SYNONYMS",
+    "DIRECT_ATS_SOURCES",
     "clean_html_text",
     "normalize_company_slug",
     "extract_target_countries",
     "check_job_country_match",
     "determine_work_mode",
     "calculate_semantic_fit",
+    "optimize_query_for_source",
     "silence_jobspy_loggers",
     "fetch_ashby_jobs",
     "fetch_greenhouse_jobs",
@@ -79,6 +83,40 @@ __all__ = [
     "fetch_landingjobs_jobs",
     "search_live_jobs_pipeline",
 ]
+
+# Official direct Applicant Tracking Systems (ATS) - unmediated employer endpoints
+DIRECT_ATS_SOURCES = {"ashby", "greenhouse", "lever", "smartrecruiters"}
+
+
+def optimize_query_for_source(query: str, source_name: str) -> str:
+    """
+    Format query syntax appropriately for each specific scraper/API (Point 1.B):
+    - ATS (Ashby, Greenhouse, Lever, SmartRecruiters): Clean core discipline keywords.
+    - Boolean boards (LinkedIn, JobSpy): Clean query without noisy parenthesis or stopwords.
+    - Portuguese portals (ITJobs, Net-Empregos, Landing.jobs): Clean tech terms.
+    - Aggregators: Clean tag/discipline keywords.
+    """
+    if not query:
+        return ""
+    q = re.sub(r"\s*\([^)]*\)", "", query).strip()
+    q_clean = re.sub(r"[/\\,]+", " ", q).strip()
+
+    source_lower = source_name.lower()
+    if any(ats in source_lower for ats in DIRECT_ATS_SOURCES):
+        words = q_clean.split()
+        if len(words) > 3:
+            if any(k in q_clean.lower() for k in ["ai", "machine learning", "ml", "llm"]):
+                return "AI Engineer" if "engineer" in q_clean.lower() else "Machine Learning"
+            elif "data" in q_clean.lower():
+                return "Data Engineer" if "engineer" in q_clean.lower() else "Data"
+            elif "product" in q_clean.lower():
+                return "Product Manager"
+            else:
+                return "Software Engineer"
+        return q_clean
+
+    return q_clean
+
 
 
 def search_live_jobs_pipeline(
@@ -115,9 +153,18 @@ def search_live_jobs_pipeline(
     countries_display = ", ".join([c.title() for c in target_countries]) if target_countries else "Global / Worldwide"
 
     selected_roles = profile.get("selected_roles") or profile.get("target_roles") or []
+    
+    # Point 1.A: Multi-Query Fan-Out across selected recommended roles
+    search_queries = [target_role]
+    for r in selected_roles:
+        if r and r.strip().lower() != target_role.strip().lower() and r.strip() not in search_queries:
+            search_queries.append(r.strip())
+            if len(search_queries) >= 3:
+                break
+
     role_display = f"'{target_role}'"
-    if selected_roles and len(selected_roles) > 1:
-        role_display = f"{len(selected_roles)} curated roles ({', '.join(selected_roles[:2])}...)"
+    if len(search_queries) > 1:
+        role_display = f"{len(search_queries)} curated roles ({', '.join(search_queries[:2])}...)"
 
     dispatch_desc = f"Searching roles for: {role_display} | Region: {countries_display} | Mode: {profile.get('work_mode', 'Remote Only')}"
     if custom_companies:
@@ -127,38 +174,46 @@ def search_live_jobs_pipeline(
 
     log(5, "JobCrawler-Dispatcher", dispatch_desc)
 
-
-    # Configure the concurrent scraper tasks across all 17 channels
+    # Configure the concurrent scraper tasks across all 17 channels with source-specific query optimization (Point 1.B)
     tasks = [
-        ("LinkedIn", lambda: fetch_linkedin_jobs(target_query=target_role, target_location=target_loc_str, work_mode_pref=work_mode_pref, limit=25)),
-        ("Ashby", lambda: fetch_ashby_jobs(target_query=target_role, target_location=target_loc_str, custom_companies=custom_companies, limit=40)),
-        ("Greenhouse", lambda: fetch_greenhouse_jobs(target_query=target_role, target_location=target_loc_str, custom_companies=custom_companies, limit=40)),
-        ("Lever", lambda: fetch_lever_jobs(target_query=target_role, target_location=target_loc_str, custom_companies=custom_companies, limit=35)),
-        ("SmartRecruiters", lambda: fetch_smartrecruiters_jobs(target_query=target_role, target_location=target_loc_str, custom_companies=custom_companies, limit=25)),
-        ("JobSpy", lambda: fetch_jobspy_jobs(target_query=target_role, target_location=target_loc_str, is_remote=not is_onsite_only, limit=25)),
-        ("Arbeitnow", lambda: fetch_arbeitnow_jobs(target_query=target_role, limit=80)),
-        ("WeWorkRemotely", lambda: fetch_weworkremotely_jobs(target_query=target_role, target_location=target_loc_str, limit=35)),
-        ("TelecomCrossing", lambda: fetch_telecomcrossing_jobs(target_query=target_role, target_location=target_loc_str, limit=25)),
-        ("ZipRecruiter", lambda: fetch_ziprecruiter_jobs(target_query=target_role, target_location=target_loc_str, is_remote=not is_onsite_only, limit=25)),
-        ("ITJobs", lambda: fetch_itjobs_jobs(target_query=target_role, target_location=target_loc_str, limit=30)),
-        ("NetEmpregos", lambda: fetch_netempregos_jobs(target_query=target_role, target_location=target_loc_str, limit=30)),
-        ("LandingJobs", lambda: fetch_landingjobs_jobs(target_query=target_role, target_location=target_loc_str, limit=25)),
+        ("LinkedIn", lambda: fetch_linkedin_jobs(target_query=optimize_query_for_source(target_role, "LinkedIn"), target_location=target_loc_str, work_mode_pref=work_mode_pref, limit=25)),
+        ("Ashby", lambda: fetch_ashby_jobs(target_query=optimize_query_for_source(target_role, "Ashby"), target_location=target_loc_str, custom_companies=custom_companies, limit=40)),
+        ("Greenhouse", lambda: fetch_greenhouse_jobs(target_query=optimize_query_for_source(target_role, "Greenhouse"), target_location=target_loc_str, custom_companies=custom_companies, limit=40)),
+        ("Lever", lambda: fetch_lever_jobs(target_query=optimize_query_for_source(target_role, "Lever"), target_location=target_loc_str, custom_companies=custom_companies, limit=35)),
+        ("SmartRecruiters", lambda: fetch_smartrecruiters_jobs(target_query=optimize_query_for_source(target_role, "SmartRecruiters"), target_location=target_loc_str, custom_companies=custom_companies, limit=25)),
+        ("JobSpy", lambda: fetch_jobspy_jobs(target_query=optimize_query_for_source(target_role, "JobSpy"), target_location=target_loc_str, is_remote=not is_onsite_only, limit=25)),
+        ("Arbeitnow", lambda: fetch_arbeitnow_jobs(target_query=optimize_query_for_source(target_role, "Arbeitnow"), limit=80)),
+        ("WeWorkRemotely", lambda: fetch_weworkremotely_jobs(target_query=optimize_query_for_source(target_role, "WeWorkRemotely"), target_location=target_loc_str, limit=35)),
+        ("TelecomCrossing", lambda: fetch_telecomcrossing_jobs(target_query=optimize_query_for_source(target_role, "TelecomCrossing"), target_location=target_loc_str, limit=25)),
+        ("ZipRecruiter", lambda: fetch_ziprecruiter_jobs(target_query=optimize_query_for_source(target_role, "ZipRecruiter"), target_location=target_loc_str, is_remote=not is_onsite_only, limit=25)),
+        ("ITJobs", lambda: fetch_itjobs_jobs(target_query=optimize_query_for_source(target_role, "ITJobs"), target_location=target_loc_str, limit=30)),
+        ("NetEmpregos", lambda: fetch_netempregos_jobs(target_query=optimize_query_for_source(target_role, "NetEmpregos"), target_location=target_loc_str, limit=30)),
+        ("LandingJobs", lambda: fetch_landingjobs_jobs(target_query=optimize_query_for_source(target_role, "LandingJobs"), target_location=target_loc_str, limit=25)),
         ("Jobicy", lambda: fetch_jobicy_jobs(limit=40)),
         ("RemoteOK", lambda: fetch_remoteok_jobs(limit=50)),
         ("Remotive", lambda: fetch_remotive_jobs(limit=30)),
     ]
+
+    # Fan-Out for secondary selected roles across high-yield search channels (Point 1.A)
+    for sec_role in search_queries[1:]:
+        tasks.append(("LinkedIn", lambda r=sec_role: fetch_linkedin_jobs(target_query=optimize_query_for_source(r, "LinkedIn"), target_location=target_loc_str, work_mode_pref=work_mode_pref, limit=20)))
+        tasks.append(("Ashby", lambda r=sec_role: fetch_ashby_jobs(target_query=optimize_query_for_source(r, "Ashby"), target_location=target_loc_str, custom_companies=custom_companies, limit=30)))
+        tasks.append(("Greenhouse", lambda r=sec_role: fetch_greenhouse_jobs(target_query=optimize_query_for_source(r, "Greenhouse"), target_location=target_loc_str, custom_companies=custom_companies, limit=30)))
+        tasks.append(("JobSpy", lambda r=sec_role: fetch_jobspy_jobs(target_query=optimize_query_for_source(r, "JobSpy"), target_location=target_loc_str, is_remote=not is_onsite_only, limit=20)))
+        tasks.append(("ITJobs", lambda r=sec_role: fetch_itjobs_jobs(target_query=optimize_query_for_source(r, "ITJobs"), target_location=target_loc_str, limit=20)))
+        tasks.append(("LandingJobs", lambda r=sec_role: fetch_landingjobs_jobs(target_query=optimize_query_for_source(r, "LandingJobs"), target_location=target_loc_str, limit=20)))
 
     apify_token = profile.get("apify_api_token") or os.environ.get("APIFY_API_TOKEN")
     if apify_token:
         tasks.append(("Apify", lambda: fetch_apify_jobs(target_query=target_role, target_location=target_loc_str, api_token=apify_token, limit=20)))
 
     total_tasks = len(tasks)
-    log(8, "JobCrawler-Dispatcher", f"Launched {total_tasks} parallel async scrapers via ThreadPoolExecutor...")
+    log(8, "JobCrawler-Dispatcher", f"Launched {total_tasks} parallel async scrapers across {len(search_queries)} role queries...")
 
     all_raw = []
     completed_count = 0
 
-    with ThreadPoolExecutor(max_workers=min(17, total_tasks)) as executor:
+    with ThreadPoolExecutor(max_workers=min(22, total_tasks)) as executor:
         future_to_name = {
             executor.submit(safe_scrape, name, fn): name
             for name, fn in tasks
@@ -182,7 +237,7 @@ def search_live_jobs_pipeline(
         return MOCK_JOB_RESULTS, len(MOCK_JOB_RESULTS)
 
     # Phase: Semantic Evaluation, Exclusions & Candidate Profile Calibration
-    log(94, "SemanticMatcher", f"Scoring {total_scraped} raw positions against '{target_role}', dream companies, and exclusions...")
+    log(94, "SemanticMatcher", f"Scoring {total_scraped} raw positions across multi-dimensional match criteria...")
 
     matched_jobs = []
     excluded_by_negative = 0
@@ -226,8 +281,17 @@ def search_live_jobs_pipeline(
                     if not is_country_match:
                         continue
 
-        # 3. Compute Semantic Fit
+        # Direct ATS Identification (Point 3.B)
+        is_direct_ats = any(ats in job.get("source", "").lower() for ats in DIRECT_ATS_SOURCES)
+        job["is_direct_ats"] = is_direct_ats
+
+        # 3. Compute Multi-Dimensional Semantic Fit (Point 2)
         fit_score, matched_skills, reasons, final_mode_label = calculate_semantic_fit(job, profile, target_countries)
+
+        # Direct ATS Trust Bonus
+        if is_direct_ats:
+            fit_score = min(99, fit_score + 2)
+            reasons.insert(0, "⭐ Direct ATS Official Submission: Unmediated employer requisition.")
 
         # 4. Target Dream Company Boost
         is_target_employer = job.get("is_target_company") or (
@@ -268,6 +332,12 @@ def search_live_jobs_pipeline(
         if key not in seen_keys:
             seen_keys.add(key)
             unique_matches.append(j)
+
+    # Phase 2: Hybrid Gemini Reranking (Point 2.E - if API key available)
+    gemini_key = profile.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
+    if gemini_key and len(unique_matches) > 1:
+        log(98, "GeminiReranker", "Pass 2: Executing deep semantic reranking with Gemini Flash...")
+        unique_matches = rerank_top_jobs_with_gemini(unique_matches, profile, api_key=gemini_key, limit=15)
 
     top_matches = unique_matches[:25] if unique_matches else all_raw[:10]
 

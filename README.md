@@ -110,10 +110,19 @@ The platform is organized as a modular 6-screen deterministic state machine gove
    - **Recruiter Analysis & 100% Match Gap Analysis Modal**: Explains fit rationale and provides step-by-step guidance on skills, experience, and certifications needed to hit 100% match.
    - **Selective Search Checkboxes**: Check or uncheck recommended roles to control which queries are crawled.
 3. **Screen 3: Concurrent Multi-Source Scraping Stream (`src/views/screen3_loading.py`)**
-   - Real-time animated telemetry tracking concurrent crawlers across **14 live job sources** executed in parallel.
-   - Profile-driven semantic matching, exclusion rejection, and deduplication.
+   - Real-time animated telemetry tracking concurrent crawlers across **17 live job sources** executed in parallel.
+   - **Multi-Query Fan-Out**: Automatically queries across all selected Recommended Roles from Screen 2 in parallel.
+   - **Platform-Specific Query Optimizer**: Tailors query syntax for ATS endpoints (Ashby, Greenhouse, Lever, SmartRecruiters) and boolean job boards (LinkedIn, JobSpy).
+   - Profile-driven multi-dimensional scoring, exclusion rejection, and cross-platform deduplication.
 4. **Screen 4: Job Dashboard (`src/views/screen4_dashboard.py`)**
-   - Ranked job opportunities with calibrated Match Score badges and **⭐ Target Dream Company** indicators.
+   - Ranked job opportunities with calibrated Match Score badges, **⭐ Target Dream Company** indicators, and **⚡ Direct ATS Official Submission** trust badges.
+   - **Multi-Dimensional Scoring Engine**:
+     - **Freshness Recency Boost**: Time-decay modifiers (+4 pts for <=3 days, +2 pts for <=7 days, -3 pts for aging requisitions).
+     - **Core Anchors vs. Secondary Skills**: Distinguishes primary career anchor competencies (+6 pts each) from secondary tools (+2 pts each).
+     - **Experience & Leveling Calibration**: Auto-extracts required Years of Experience (YoE) and scores candidate leveling with stretch recognition.
+     - **Salary Fit Factor**: Evaluates compensation against candidate minimum targets.
+     - **Two-Pass Hybrid Gemini Reranker**: Deep semantic reranking with Gemini Flash and personalized recruiter verdicts.
+   - **Tech Stack Alignment Matrix**: Visual chips directly on every card showing 🟢 Matched Tech vs 🔴 Growth Tech gaps.
    - **Days Since Posted Indicator**: Positioned right after Location with elapsed day count and freshness tier badges (`🔥 New`, `⏱️ Recent`, `📅 Active`).
    - **Geographic Salary Evaluator**: Numerical score (0-100) and market rank calibrated to the candidate's designated **Target Location & Countries** from Screen 1.
    - **The 4 Agentic Power Tools on Every Job Card**:
