@@ -259,3 +259,107 @@ def test_file_parser_markdown_support():
     extracted = extract_text_from_file(md_file)
     assert "Candidate Resume" in extracted
     assert "Python" in extracted
+
+
+# ============================================================================
+# Screen 2 Quick Optimize & Full Optimization Dialog Tests
+# ============================================================================
+
+def test_execute_profile_quick_optimization():
+    """Verify in-place quick optimization upgrades bullets with STAR metrics and leadership verbs."""
+    from src.views.screen2_review import execute_profile_quick_optimization
+
+    sample_prof = {
+        "full_name": "Devin Thorne",
+        "headline": "Software Engineer",
+        "email": "devin@example.com",
+        "phone": "+1 555-012-3456",
+        "linkedin_url": "https://linkedin.com/in/devinthorne",
+        "extracted_skills": ["Python", "Docker", "Kubernetes", "PostgreSQL", "FastAPI"],
+        "core_skills": ["Python", "Docker", "Kubernetes", "PostgreSQL", "FastAPI"],
+        "experience_highlights": [
+            "Worked on backend API services and database query optimization.",
+            "Assisted team with Kubernetes cluster configuration.",
+        ],
+        "raw_resume_text": "Devin Thorne\n★ Software Engineer ★\nWorked on backend.\nAssisted with K8s.",
+    }
+
+    updated_prof, updated_gaps = execute_profile_quick_optimization(
+        sample_prof,
+        target_role="Staff AI Platform Engineer",
+    )
+
+    # Experience highlights should be upgraded
+    assert len(updated_prof["experience_highlights"]) == 2
+    for b in updated_prof["experience_highlights"]:
+        assert "Architected" in b or "Spearheaded" in b or "Engineered" in b or "Orchestrated" in b
+        assert "%" in b or "$" in b or "daily" in b
+
+    # Non-standard glyphs should be cleaned
+    assert "★" not in updated_prof["raw_resume_text"]
+
+    # Competency tiers should be populated
+    assert "competency_tiers" in updated_prof
+    assert "tier_1_core" in updated_prof["competency_tiers"]
+
+    # Recruiter gaps should reflect boosted metrics
+    assert updated_gaps["readiness_score"] >= 80
+    assert updated_gaps["action_verb_power_index"] >= 80.0
+    assert updated_gaps["quantification_density_pct"] == 100.0
+
+
+def test_show_full_optimization_dialog_renders():
+    """Verify Full ATS & Readiness Optimization Analysis dialog renders 5 pillars without error."""
+    from unittest.mock import MagicMock, patch
+    from src.views.screen2_review import show_full_optimization_dialog
+
+    sample_prof = {
+        "full_name": "Devin Thorne",
+        "headline": "Staff AI Engineer",
+        "email": "devin@example.com",
+        "phone": "+1 555-012-3456",
+        "linkedin_url": "https://linkedin.com/in/devinthorne",
+        "core_skills": ["Python", "Kubernetes", "FastAPI"],
+        "experience_highlights": ["Built distributed microservices."],
+    }
+    sample_gaps = {
+        "readiness_score": 82,
+        "readiness_label": "Strong Contender",
+        "radar_metrics": {
+            "Action Verb Power": 75.0,
+            "Metric Quantification": 60.0,
+            "ATS Formatting Hygiene": 95.0,
+            "Contact Completeness": 100.0,
+            "Technical Competency Depth": 85.0,
+        },
+    }
+
+    with patch("streamlit.container") as mock_cont, \
+         patch("streamlit.columns") as mock_cols, \
+         patch("streamlit.markdown") as mock_md, \
+         patch("streamlit.button") as mock_btn, \
+         patch("streamlit.caption") as mock_cap:
+
+        mock_cols.return_value = (MagicMock(), MagicMock())
+        mock_cont.return_value.__enter__ = MagicMock()
+        mock_cont.return_value.__exit__ = MagicMock()
+        mock_btn.return_value = False
+
+        # In headless unit test environment, invoke the underlying function via __wrapped__ to test rendering without DOM open()
+        render_fn = getattr(show_full_optimization_dialog, "__wrapped__", show_full_optimization_dialog)
+        render_fn(
+            sample_prof,
+            sample_gaps,
+            candidate_name="Devin Thorne",
+            target_role="Staff AI Engineer",
+        )
+
+        all_md = " ".join([str(call.args[0]) for call in mock_md.call_args_list if call.args])
+        # Assert all 5 pillars are represented
+        assert "Action Verb Power" in all_md
+        assert "Metric Quantification" in all_md
+        assert "ATS Formatting & Structural Compliance" in all_md
+        assert "Contact Completeness" in all_md
+        assert "Technical Competency" in all_md
+        assert "Google XYZ Formula" in all_md
+

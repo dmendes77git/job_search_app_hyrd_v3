@@ -342,11 +342,17 @@ def auto_quantify_bullet(
 
     # Strip passive prefixes if present
     stripped = cleaned
-    for prefix in ["assisted with", "helped to", "worked on", "responsible for", "participated in", "contributed to", "involved in", "handled", "managed"]:
+    for prefix in [
+        "assisted with", "assisted", "helped to", "helped with", "helped",
+        "worked on", "responsible for", "participated in", "contributed to",
+        "involved in", "tasked with", "handled", "managed", "supported", "aided",
+        "served as", "duties included",
+    ]:
         if stripped.lower().startswith(prefix):
             stripped = stripped[len(prefix):].strip(" ,;:-")
             break
 
+    stripped = stripped.rstrip(".,;:- ")
     quantified_bullet = f"{power_verb} for {stripped}, {metric_str}."
 
     return {
