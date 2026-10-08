@@ -13,6 +13,7 @@ Outputs pure in-memory BytesIO streams for direct Streamlit download without dis
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import io
 import re
 import zipfile
@@ -48,6 +49,7 @@ def build_application_bundle_zip(
     """
     Generate an in-memory ZIP archive containing the complete suite of tailored application artifacts.
     Reuses existing cached documents if available in candidate session to maximize speed.
+    Concurrently executes uncached document generation tasks in parallel.
     """
     cached = cached_docs or {}
     company_name = job.get("company") or "Target_Company"
@@ -57,19 +59,61 @@ def build_application_bundle_zip(
     clean_comp = _sanitize_filename(company_name)
     clean_cand = _sanitize_filename(cand_name)
 
-    zip_buffer = io.BytesIO()
-
-    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
-        # 1. Resume / CV (.docx & .pdf)
-        cv_text = cached.get("tailored_cv")
-        if not cv_text:
-            cv_text = generate_customized_cv(
+    # Resolve all uncached text/data payloads concurrently via ThreadPoolExecutor
+    futures: Dict[str, Any] = {}
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        if not cached.get("tailored_cv"):
+            futures["tailored_cv"] = executor.submit(
+                generate_customized_cv,
+                job=job,
+                profile=profile,
+                api_key=api_key,
+                preferred_model=preferred_model,
+            )
+        if not cached.get("cover_letter"):
+            futures["cover_letter"] = executor.submit(
+                generate_cover_letter,
+                job=job,
+                profile=profile,
+                api_key=api_key,
+                preferred_model=preferred_model,
+            )
+        if not cached.get("interview_prep"):
+            futures["interview_prep"] = executor.submit(
+                generate_interview_prep_pack,
+                job=job,
+                profile=profile,
+                api_key=api_key,
+                preferred_model=preferred_model,
+            )
+        if not cached.get("company_dossier"):
+            futures["company_dossier"] = executor.submit(
+                generate_company_dossier,
+                company_name=company_name,
+                job_title=job_title,
+                job_description=job.get("description", ""),
+                api_key=api_key,
+                preferred_model=preferred_model,
+            )
+        if not cached.get("outreach_campaign"):
+            futures["outreach_campaign"] = executor.submit(
+                generate_outreach_campaign,
                 job=job,
                 profile=profile,
                 api_key=api_key,
                 preferred_model=preferred_model,
             )
 
+        cv_text = cached.get("tailored_cv") or (futures["tailored_cv"].result() if "tailored_cv" in futures else "")
+        cl_text = cached.get("cover_letter") or (futures["cover_letter"].result() if "cover_letter" in futures else "")
+        prep_pack = cached.get("interview_prep") or (futures["interview_prep"].result() if "interview_prep" in futures else {})
+        dossier = cached.get("company_dossier") or (futures["company_dossier"].result() if "company_dossier" in futures else {})
+        outreach = cached.get("outreach_campaign") or (futures["outreach_campaign"].result() if "outreach_campaign" in futures else {})
+
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        # 1. Resume / CV (.docx & .pdf)
         cv_docx_buf = create_cv_docx(cv_text)
         zip_file.writestr(f"01_Resume_{clean_cand}_{clean_comp}.docx", cv_docx_buf.getvalue())
 
@@ -77,15 +121,6 @@ def build_application_bundle_zip(
         zip_file.writestr(f"01_Resume_{clean_cand}_{clean_comp}.pdf", cv_pdf_buf.getvalue())
 
         # 2. Cover Letter (.docx & .pdf)
-        cl_text = cached.get("cover_letter")
-        if not cl_text:
-            cl_text = generate_cover_letter(
-                job=job,
-                profile=profile,
-                api_key=api_key,
-                preferred_model=preferred_model,
-            )
-
         cl_docx_buf = create_cover_letter_docx(
             letter_text=cl_text,
             candidate_name=cand_name,
@@ -103,29 +138,10 @@ def build_application_bundle_zip(
         zip_file.writestr(f"02_CoverLetter_{clean_cand}_{clean_comp}.pdf", cl_pdf_buf.getvalue())
 
         # 3. Interview Preparation Battlecard (.docx)
-        prep_pack = cached.get("interview_prep")
-        if not prep_pack:
-            prep_pack = generate_interview_prep_pack(
-                job=job,
-                profile=profile,
-                api_key=api_key,
-                preferred_model=preferred_model,
-            )
-
         prep_docx_buf = create_interview_prep_docx(prep_pack)
         zip_file.writestr(f"03_InterviewPrep_Battlecard_{clean_comp}.docx", prep_docx_buf.getvalue())
 
         # 4. Company Intelligence Dossier (.docx & .pdf)
-        dossier = cached.get("company_dossier")
-        if not dossier:
-            dossier = generate_company_dossier(
-                company_name=company_name,
-                job_title=job_title,
-                job_description=job.get("description", ""),
-                api_key=api_key,
-                preferred_model=preferred_model,
-            )
-
         dossier_docx_buf = build_dossier_docx(dossier)
         zip_file.writestr(f"04_CompanyIntelligence_Dossier_{clean_comp}.docx", dossier_docx_buf.getvalue())
 
@@ -133,14 +149,6 @@ def build_application_bundle_zip(
         zip_file.writestr(f"04_CompanyIntelligence_Dossier_{clean_comp}.pdf", dossier_pdf_buf.getvalue())
 
         # 5. Executive Outreach Campaign (.txt)
-        outreach = cached.get("outreach_campaign")
-        if not outreach:
-            outreach = generate_outreach_campaign(
-                job=job,
-                profile=profile,
-                api_key=api_key,
-                preferred_model=preferred_model,
-            )
 
         outreach_lines = [
             f"EXECUTIVE RECRUITER COLD OUTREACH CAMPAIGN",

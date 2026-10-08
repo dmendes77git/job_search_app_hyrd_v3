@@ -9,6 +9,7 @@ Conducts deep-dive AI investigations into target employers:
 - Culture, Work-Life Balance & Glassdoor Sentiment
 """
 
+import copy
 import json
 import logging
 import os
@@ -16,6 +17,14 @@ import re
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger("CompanyIntelligenceAgent")
+
+_DOSSIER_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def clear_dossier_cache() -> None:
+    """Clear in-memory cached company dossiers."""
+    global _DOSSIER_CACHE
+    _DOSSIER_CACHE.clear()
 
 
 def get_mock_company_dossier(company_name: str, job_title: str = "Engineer") -> Dict[str, Any]:
@@ -94,9 +103,15 @@ def generate_company_dossier(
     if not company_clean:
         return get_mock_company_dossier("Target Company", job_title=job_title)
 
+    cache_key = f"{company_clean.lower()}::{job_title.lower()}"
+    if cache_key in _DOSSIER_CACHE:
+        return copy.deepcopy(_DOSSIER_CACHE[cache_key])
+
     key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not key:
-        return get_mock_company_dossier(company_clean, job_title=job_title)
+        mock_dossier = get_mock_company_dossier(company_clean, job_title=job_title)
+        _DOSSIER_CACHE[cache_key] = copy.deepcopy(mock_dossier)
+        return mock_dossier
 
     prompt = f"""You are an elite corporate intelligence analyst and executive career strategist.
 Generate an exhaustive, highly accurate intelligence dossier on this employer for a senior candidate applying for the position of: '{job_title or 'Engineer'}'.
@@ -169,6 +184,9 @@ IMPORTANT: Return ONLY the JSON object. Do NOT wrap in markdown code blocks or p
 
     data = generate_gemini_json(prompt, api_key=key, preferred_model=preferred_model)
     if isinstance(data, dict) and "company_name" in data:
+        _DOSSIER_CACHE[cache_key] = copy.deepcopy(data)
         return data
 
-    return get_mock_company_dossier(company_clean, job_title=job_title)
+    fallback = get_mock_company_dossier(company_clean, job_title=job_title)
+    _DOSSIER_CACHE[cache_key] = copy.deepcopy(fallback)
+    return fallback

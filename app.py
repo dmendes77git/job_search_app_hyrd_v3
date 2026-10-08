@@ -125,7 +125,12 @@ def main() -> None:
     init_session_state()
 
     active_id = get_active_user_id()
-    active_profile = get_user_profile(active_id) if active_id else {}
+    active_profile = st.session_state.get("active_user_profile")
+    if not active_profile or st.session_state.get("_cached_active_id") != active_id:
+        active_profile = get_user_profile(active_id) if active_id else {}
+        st.session_state.active_user_profile = active_profile
+        st.session_state._cached_active_id = active_id
+
     cand_name = active_profile.get("full_name") or st.session_state.get("candidate_name") or "Candidate"
     cand_headline = active_profile.get("headline", "Professional")
     cand_color = active_profile.get("avatar_color", "#2563eb")

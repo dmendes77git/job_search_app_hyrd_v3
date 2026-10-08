@@ -142,7 +142,6 @@ def render_screen4() -> None:
             )
 
     # Filter job results based on controls
-    filtered_jobs = []
     cand_min_pref = st.session_state.get("min_salary") or profile.get("preferred_min_salary", "")
     target_loc = (
         st.session_state.get("target_location")
@@ -151,79 +150,90 @@ def render_screen4() -> None:
         or ""
     )
 
-    for job in jobs_source:
-        fit = job.get("profile_fit_score", job.get("fit_score", 0))
-        if fit < min_score:
-            continue
-        if quadrant_filter != "All Quadrants":
-            q_prefix = quadrant_filter.split(":")[0].strip()
-            if job.get("strategic_quadrant") != q_prefix:
-                continue
-        if search_query:
-            query_lower = search_query.lower()
-            in_title = query_lower in (job.get("title") or "").lower()
-            in_company = query_lower in (job.get("company") or job.get("company_name") or "").lower()
-            in_skills = any(query_lower in str(s).lower() for s in job.get("matched_skills", []))
-            if not (in_title or in_company or in_skills):
-                continue
-
-        job_type_lower = job.get("job_type", "").lower()
-        if loc_filter == "Remote Only" and "remote" not in job_type_lower:
-            continue
-        elif loc_filter == "Hybrid Only" and "hybrid" not in job_type_lower:
-            continue
-        elif loc_filter == "On-site Only" and "on-site" not in job_type_lower:
-            continue
-
-        src_lower = job.get("source", "").lower()
-        if source_type_filter == "Direct ATS Only" and not (
-            job.get("is_direct_ats")
-            or any(ats in src_lower for ats in ["ashby", "greenhouse", "lever", "smartrecruiters"])
-        ):
-            continue
-        elif source_type_filter == "Portuguese Portals Only" and not any(
-            pt in src_lower for pt in ["itjobs", "net-empregos", "netempregos", "landing"]
-        ):
-            continue
-        elif source_type_filter == "Remote Hubs Only" and not any(
-            rh in src_lower for rh in ["remoteok", "remotive", "weworkremotely", "jobicy"]
-        ):
-            continue
-
-        # Evaluate proposed salary against candidate profile, preferences, and target location market benchmarks (with caching)
-        salary_eval = job.get("salary_eval")
-        if not salary_eval:
-            salary_eval = evaluate_job_salary(
-                job_salary_str=job.get("salary", ""),
-                job_title=job.get("title", ""),
-                profile=profile,
-                desired_min_salary_str=cand_min_pref,
-                target_location=target_loc,
-                job_location=job.get("location", ""),
-            )
-            job["salary_eval"] = salary_eval
-
-        if salary_filter == "Above Market Only" and salary_eval["rank"] != "Above Market":
-            continue
-        elif salary_filter == "Within Market Standard & Above" and salary_eval["rank"] not in [
-            "Within Market Standard",
-            "Above Market",
-        ]:
-            continue
-
-        filtered_jobs.append(job)
-
-    # Filter state tracking to reset page to 1 when filters change
     current_filter_sig = (
+        id(jobs_source),
+        len(jobs_source),
         search_query,
         min_score,
         quadrant_filter,
         loc_filter,
         salary_filter,
         source_type_filter,
+        cand_min_pref,
+        target_loc,
     )
-    if st.session_state.get("_dashboard_filter_sig") != current_filter_sig:
+
+    if (
+        st.session_state.get("_dashboard_filter_sig") == current_filter_sig
+        and "_cached_filtered_jobs" in st.session_state
+    ):
+        filtered_jobs = st.session_state._cached_filtered_jobs
+    else:
+        filtered_jobs = []
+        for job in jobs_source:
+            fit = job.get("profile_fit_score", job.get("fit_score", 0))
+            if fit < min_score:
+                continue
+            if quadrant_filter != "All Quadrants":
+                q_prefix = quadrant_filter.split(":")[0].strip()
+                if job.get("strategic_quadrant") != q_prefix:
+                    continue
+            if search_query:
+                query_lower = search_query.lower()
+                in_title = query_lower in (job.get("title") or "").lower()
+                in_company = query_lower in (job.get("company") or job.get("company_name") or "").lower()
+                in_skills = any(query_lower in str(s).lower() for s in job.get("matched_skills", []))
+                if not (in_title or in_company or in_skills):
+                    continue
+
+            job_type_lower = job.get("job_type", "").lower()
+            if loc_filter == "Remote Only" and "remote" not in job_type_lower:
+                continue
+            elif loc_filter == "Hybrid Only" and "hybrid" not in job_type_lower:
+                continue
+            elif loc_filter == "On-site Only" and "on-site" not in job_type_lower:
+                continue
+
+            src_lower = job.get("source", "").lower()
+            if source_type_filter == "Direct ATS Only" and not (
+                job.get("is_direct_ats")
+                or any(ats in src_lower for ats in ["ashby", "greenhouse", "lever", "smartrecruiters"])
+            ):
+                continue
+            elif source_type_filter == "Portuguese Portals Only" and not any(
+                pt in src_lower for pt in ["itjobs", "net-empregos", "netempregos", "landing"]
+            ):
+                continue
+            elif source_type_filter == "Remote Hubs Only" and not any(
+                rh in src_lower for rh in ["remoteok", "remotive", "weworkremotely", "jobicy"]
+            ):
+                continue
+
+            # Evaluate proposed salary against candidate profile, preferences, and target location market benchmarks (with caching)
+            salary_eval = job.get("salary_eval")
+            if not salary_eval:
+                salary_eval = evaluate_job_salary(
+                    job_salary_str=job.get("salary", ""),
+                    job_title=job.get("title", ""),
+                    profile=profile,
+                    desired_min_salary_str=cand_min_pref,
+                    target_location=target_loc,
+                    job_location=job.get("location", ""),
+                )
+                job["salary_eval"] = salary_eval
+
+            if salary_filter == "Above Market Only" and salary_eval["rank"] != "Above Market":
+                continue
+            elif salary_filter == "Within Market Standard & Above" and salary_eval["rank"] not in [
+                "Within Market Standard",
+                "Above Market",
+            ]:
+                continue
+
+            filtered_jobs.append(job)
+
         st.session_state._dashboard_filter_sig = current_filter_sig
+        st.session_state._cached_filtered_jobs = filtered_jobs
         st.session_state.dashboard_page = 1
 
     total_matched = len(filtered_jobs)

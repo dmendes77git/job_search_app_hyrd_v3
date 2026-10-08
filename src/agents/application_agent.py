@@ -18,6 +18,7 @@ from src.utils.ats_optimizer import (
     format_ats_contact_block,
     audit_ats_cv_compatibility,
     detect_job_language,
+    compress_job_context,
 )
 
 from src.utils.gemini_client import (
@@ -55,7 +56,7 @@ def generate_customized_cv(
     candidate_name = profile.get("full_name") or "Alex Mercer"
     headline = job.get("title", profile.get("headline", "Senior AI Engineer"))
     company = job.get("company", "Target Company")
-    job_desc = job.get("description", "")
+    job_desc = compress_job_context(job.get("description", ""), max_chars=1800)
     matched_skills = job.get("matched_skills", [])
     reasons = job.get("key_reasons", [])
 
@@ -300,6 +301,7 @@ def generate_customized_cover_letter(
     email = profile.get("email") or "alex.mercer.dev@example.com"
     phone = profile.get("phone") or "+1 (555) 019-2834"
     loc_str = profile.get("location") or "San Francisco, CA"
+    job_desc = compress_job_context(job.get("description", ""), max_chars=1800)
 
     # Target language determination
     target_lang = (language or detect_job_language(job)).lower()
@@ -319,7 +321,7 @@ ROLE DETAILS:
 - Função: {title}
 - Empresa: {company}
 - Localização: {location}
-- Descrição da Função: {job.get('description', '')}
+- Descrição da Função: {job_desc}
 - Competências Relevantes: {skills_preview_pt}
 
 CANDIDATE DETAILS:
@@ -348,7 +350,7 @@ ROLE DETAILS:
 - Title: {title}
 - Company: {company}
 - Location: {location}
-- Description: {job.get('description', '')}
+- Description: {job_desc}
 - Matched Competencies: {skills_preview}
 
 CANDIDATE DETAILS:

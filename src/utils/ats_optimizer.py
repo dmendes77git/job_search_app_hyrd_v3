@@ -524,3 +524,68 @@ def generate_ats_keyword_heatmap(
         "items": heatmap_items,
         "auto_inject_suggestions": auto_inject_suggestions,
     }
+
+
+_EEO_BOILERPLATE_PATTERNS = [
+    re.compile(
+        r"(?:equal\s+opportunity\s+employer|we\s+(?:are|pride\s+ourselves\s+on\s+being)\s+an\s+equal\s+opportunity|affirmative\s+action|veteran\s+status|gender\s+identity|sexual\s+orientation|national\s+origin|reasonable\s+accommodations?|disability\s+status|race,\s+color,\s+religion).*?(?=(?:\n\s*\n|\Z))",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(
+        r"(?:oportunidades?\s+iguais\s+de\s+emprego|todas\s+as\s+candidaturas\s+serão\s+tratadas\s+com\s+confidencialidade|processo\s+de\s+recrutamento\s+inclusivo).*?(?=(?:\n\s*\n|\Z))",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(
+        r"(?:physical\s+(?:requirements|demands)|must\s+be\s+able\s+to\s+lift|background\s+check\s+and\s+drug\s+screen|covid-19\s+vaccination).*?(?=(?:\n\s*\n|\Z))",
+        re.IGNORECASE | re.DOTALL,
+    ),
+]
+
+_PERKS_BOILERPLATE_PATTERNS = [
+    re.compile(
+        r"(?:benefits\s*(?:&|and)\s*perks|what\s+we\s+offer|our\s+benefits|perks\s*(?:&|and)\s*benefits|remuneração\s*e\s*benefícios)[\s\S]*?(?=(?:responsibilities|requirements|qualifications|about\s+the\s+role|tech\s+stack|requisitos|responsabilidades|\Z))",
+        re.IGNORECASE,
+    ),
+]
+
+
+def compress_job_context(raw_desc: Optional[str], max_chars: int = 1800) -> str:
+    """
+    Compress job descriptions for LLM prompt payloads by stripping legal EEO boilerplates,
+    generic benefits fluff, and physical accommodation clauses while preserving
+    core technical responsibilities, requirements, and keywords.
+    Ensures the final context stays within max_chars (default: 1800).
+    """
+    if not raw_desc or not isinstance(raw_desc, str):
+        return ""
+
+    text = raw_desc.strip()
+    if not text:
+        return ""
+
+    # Strip EEO & Legal Boilerplate
+    for pat in _EEO_BOILERPLATE_PATTERNS:
+        text = pat.sub("", text)
+
+    # Strip Perks & Benefits blocks only if text exceeds target max_chars
+    if len(text) > max_chars:
+        for pat in _PERKS_BOILERPLATE_PATTERNS:
+            text = pat.sub("", text)
+
+    # Clean up redundant blank lines & whitespace
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+
+    # Truncate gracefully to max_chars if still over limit
+    if len(text) > max_chars:
+        cutoff = text.rfind("\n", 0, max_chars)
+        if cutoff < max_chars // 2:
+            cutoff = text.rfind(". ", 0, max_chars)
+        if cutoff < max_chars // 2:
+            cutoff = text.rfind(" ", 0, max_chars)
+        if cutoff > max_chars // 4:
+            text = text[:cutoff].strip() + "\n..."
+        else:
+            text = text[:max_chars].strip() + "..."
+
+    return text
+

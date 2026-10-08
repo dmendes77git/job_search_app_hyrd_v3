@@ -268,26 +268,16 @@ def search_live_jobs_pipeline(
         log(100, "ScoringAgent", "Network throttled — loaded verified opportunities.")
         return MOCK_JOB_RESULTS, len(MOCK_JOB_RESULTS)
 
-    # Phase: Cross-Source Fuzzy Deduplication (Feature P2-B)
-    deduped_raw, dedup_metrics = deduplicate_jobs(all_raw)
-    if dedup_metrics.get("duplicates_removed", 0) > 0:
-        log(
-            93,
-            "DeduplicationEngine",
-            f"Resolved {dedup_metrics['duplicates_removed']} duplicate postings across {dedup_metrics['cross_listed_clusters']} requisitions.",
-        )
-
-    # Phase: Semantic Evaluation, Exclusions & Candidate Profile Calibration
-    log(94, "SemanticMatcher", f"Scoring {len(deduped_raw)} distinct positions across multi-dimensional match criteria...")
-
-    matched_jobs = []
+    # Phase 1: Fast Linear Pre-Filter (Deal-Breakers, Exclusions & Geographic Bounds)
+    filtered_pre_dedup = []
     excluded_by_negative = 0
+    strict_db_enabled = profile.get("strict_dealbreakers_enabled", True)
 
-    for job in deduped_raw:
+    for job in all_raw:
         # 1. Configurable Hard Deal-Breakers (Feature P2-A)
         dealbreaker = evaluate_dealbreakers(job, profile, target_countries)
         job["gatekeeper_audit"] = dealbreaker
-        if dealbreaker.get("is_disqualified", False) and profile.get("strict_dealbreakers_enabled", True):
+        if dealbreaker.get("is_disqualified", False) and strict_db_enabled:
             continue
 
         job_title = job.get("title", "")
@@ -304,35 +294,46 @@ def search_live_jobs_pipeline(
         mode_label, is_remote, is_hybrid, is_onsite = determine_work_mode(job)
         job_loc = job.get("location", "")
 
-        # 2. Geographic & Work Mode Filtering
+        # 3. Geographic & Work Mode Filtering
         if is_remote_only:
-            # Candidate ONLY wants remote
             if not is_remote:
                 continue
         elif is_onsite_only:
-            # Candidate ONLY wants on-site / hybrid in specified countries
             if is_remote:
                 continue
             is_country_match, _ = check_job_country_match(job_loc, target_countries)
             if not is_country_match and target_countries:
                 continue
         else:
-            # Candidate is open to Remote, Hybrid, and/or On-site
-            if is_remote:
-                # Remote positions are eligible
-                pass
-            else:
-                # If on-site or hybrid, it MUST match the specific countries/cities mentioned
-                if target_countries:
-                    is_country_match, _ = check_job_country_match(job_loc, target_countries)
-                    if not is_country_match:
-                        continue
+            if not is_remote and target_countries:
+                is_country_match, _ = check_job_country_match(job_loc, target_countries)
+                if not is_country_match:
+                    continue
+
+        filtered_pre_dedup.append(job)
+
+    # Phase 2: Cross-Source Fuzzy Deduplication on Valid Candidates (Feature P2-B)
+    deduped_raw, dedup_metrics = deduplicate_jobs(filtered_pre_dedup)
+    if dedup_metrics.get("duplicates_removed", 0) > 0:
+        log(
+            93,
+            "DeduplicationEngine",
+            f"Resolved {dedup_metrics['duplicates_removed']} duplicate postings across {dedup_metrics['cross_listed_clusters']} requisitions.",
+        )
+
+    # Phase 3: Semantic Evaluation & Candidate Profile Calibration
+    log(94, "SemanticMatcher", f"Scoring {len(deduped_raw)} distinct positions across multi-dimensional match criteria...")
+
+    matched_jobs = []
+
+    for job in deduped_raw:
+        job_comp = job.get("company", "")
 
         # Direct ATS Identification (Point 3.B)
         is_direct_ats = any(ats in job.get("source", "").lower() for ats in DIRECT_ATS_SOURCES)
         job["is_direct_ats"] = is_direct_ats
 
-        # 3. Compute Multi-Dimensional Semantic Fit (Point 2)
+        # Compute Multi-Dimensional Semantic Fit (Point 2)
         fit_score, matched_skills, reasons, final_mode_label = calculate_semantic_fit(job, profile, target_countries)
 
         # Direct ATS Trust Bonus

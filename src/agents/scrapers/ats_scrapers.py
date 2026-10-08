@@ -11,6 +11,7 @@ Adheres strictly to the Tier 1 Direct ATS Ingestion Hierarchy:
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
@@ -26,6 +27,93 @@ from src.agents.scrapers.base import (
 )
 
 logger = logging.getLogger("Hyrd.Scrapers.Tier1ATS")
+
+
+def _fetch_companies_concurrently(
+    scraper: BaseScraper,
+    merged_items: List[Tuple[str, str, bool]],
+    query: str,
+    location: str,
+    limit: int,
+    per_company_limit: int = 20,
+    max_workers: int = 8,
+) -> List[JobPosting]:
+    """Execute multi-company scraper requests concurrently while strictly preserving company priority order."""
+    if not merged_items:
+        return []
+
+    def _fetch_one(item: Tuple[str, str, bool]) -> List[JobPosting]:
+        return scraper.safe_fetch_jobs(
+            company_slug=item[0],
+            query=query,
+            location=location,
+            limit=per_company_limit,
+            company_display_name=item[1],
+            is_custom_target=item[2],
+        )
+
+    pool_workers = min(max_workers, len(merged_items))
+    if pool_workers <= 1:
+        batch_results = [_fetch_one(item) for item in merged_items]
+    else:
+        with ThreadPoolExecutor(max_workers=pool_workers) as executor:
+            batch_results = list(executor.map(_fetch_one, merged_items))
+
+    results: List[JobPosting] = []
+    for jobs in batch_results:
+        for job in jobs:
+            if len(results) < limit:
+                results.append(job)
+            else:
+                break
+        if len(results) >= limit:
+            break
+
+    return results
+
+
+def _fetch_workday_tenants_concurrently(
+    scraper: BaseScraper,
+    merged_items: List[Tuple[str, str, str, str]],
+    query: str,
+    location: str,
+    limit: int,
+    per_tenant_limit: int = 15,
+    max_workers: int = 6,
+) -> List[JobPosting]:
+    """Execute Workday multi-tenant requests concurrently preserving priority order."""
+    if not merged_items:
+        return []
+
+    def _fetch_one(item: Tuple[str, str, str, str]) -> List[JobPosting]:
+        return scraper.safe_fetch_jobs(
+            company_slug=item[0],
+            tenant_host=item[1],
+            career_site=item[2],
+            query=query,
+            location=location,
+            limit=per_tenant_limit,
+            company_display_name=item[3],
+        )
+
+    pool_workers = min(max_workers, len(merged_items))
+    if pool_workers <= 1:
+        batch_results = [_fetch_one(item) for item in merged_items]
+    else:
+        with ThreadPoolExecutor(max_workers=pool_workers) as executor:
+            batch_results = list(executor.map(_fetch_one, merged_items))
+
+    results: List[JobPosting] = []
+    for jobs in batch_results:
+        for job in jobs:
+            if len(results) < limit:
+                results.append(job)
+            else:
+                break
+        if len(results) >= limit:
+            break
+
+    return results
 
 
 # ============================================================================
@@ -141,23 +229,7 @@ class GreenhouseScraper(BaseScraper):
 
         custom_slugs = {t[0] for t in target_list}
         merged = target_list + [(s, n, False) for s, n in self.DEFAULT_COMPANIES if s not in custom_slugs]
-
-        results: List[JobPosting] = []
-        for slug, name, is_custom in merged:
-            if len(results) >= limit:
-                break
-            remaining = limit - len(results)
-            jobs = self.safe_fetch_jobs(
-                company_slug=slug,
-                query=query,
-                location=location,
-                limit=min(20, remaining),
-                company_display_name=name,
-                is_custom_target=is_custom,
-            )
-            results.extend(jobs)
-
-        return results
+        return _fetch_companies_concurrently(self, merged, query, location, limit, per_company_limit=20)
 
 
 # ============================================================================
@@ -283,23 +355,7 @@ class LeverScraper(BaseScraper):
 
         custom_slugs = {t[0] for t in target_list}
         merged = target_list + [(s, n, False) for s, n in self.DEFAULT_COMPANIES if s not in custom_slugs]
-
-        results: List[JobPosting] = []
-        for slug, name, is_custom in merged:
-            if len(results) >= limit:
-                break
-            remaining = limit - len(results)
-            jobs = self.safe_fetch_jobs(
-                company_slug=slug,
-                query=query,
-                location=location,
-                limit=min(20, remaining),
-                company_display_name=name,
-                is_custom_target=is_custom,
-            )
-            results.extend(jobs)
-
-        return results
+        return _fetch_companies_concurrently(self, merged, query, location, limit, per_company_limit=20)
 
 
 # ============================================================================
@@ -422,23 +478,7 @@ class AshbyScraper(BaseScraper):
 
         custom_slugs = {t[0] for t in target_list}
         merged = target_list + [(s, n, False) for s, n in self.DEFAULT_COMPANIES if s not in custom_slugs]
-
-        results: List[JobPosting] = []
-        for slug, name, is_custom in merged:
-            if len(results) >= limit:
-                break
-            remaining = limit - len(results)
-            jobs = self.safe_fetch_jobs(
-                company_slug=slug,
-                query=query,
-                location=location,
-                limit=min(20, remaining),
-                company_display_name=name,
-                is_custom_target=is_custom,
-            )
-            results.extend(jobs)
-
-        return results
+        return _fetch_companies_concurrently(self, merged, query, location, limit, per_company_limit=20)
 
 
 # ============================================================================
@@ -586,23 +626,7 @@ class WorkdayScraper(BaseScraper):
 
         custom_slugs = {t[0] for t in target_list}
         merged = target_list + [t for t in self.DEFAULT_TENANTS if t[0] not in custom_slugs]
-
-        results: List[JobPosting] = []
-        for slug, host, site, name in merged:
-            if len(results) >= limit:
-                break
-            remaining = limit - len(results)
-            jobs = self.safe_fetch_jobs(
-                company_slug=slug,
-                tenant_host=host,
-                career_site=site,
-                query=query,
-                location=location,
-                limit=min(15, remaining),
-                company_display_name=name,
-            )
-            results.extend(jobs)
-        return results
+        return _fetch_workday_tenants_concurrently(self, merged, query, location, limit, per_tenant_limit=15)
 
 
 # ============================================================================
@@ -711,21 +735,7 @@ class BambooHRScraper(BaseScraper):
 
         custom_slugs = {t[0] for t in target_list}
         merged = target_list + [(s, n, False) for s, n in self.DEFAULT_COMPANIES if s not in custom_slugs]
-
-        results: List[JobPosting] = []
-        for slug, name, is_custom in merged:
-            if len(results) >= limit:
-                break
-            remaining = limit - len(results)
-            jobs = self.safe_fetch_jobs(
-                company_slug=slug,
-                query=query,
-                location=location,
-                limit=min(15, remaining),
-                company_display_name=name,
-            )
-            results.extend(jobs)
-        return results
+        return _fetch_companies_concurrently(self, merged, query, location, limit, per_company_limit=15)
 
 
 # ============================================================================
@@ -833,21 +843,7 @@ class BreezyHRScraper(BaseScraper):
 
         custom_slugs = {t[0] for t in target_list}
         merged = target_list + [(s, n, False) for s, n in self.DEFAULT_COMPANIES if s not in custom_slugs]
-
-        results: List[JobPosting] = []
-        for slug, name, is_custom in merged:
-            if len(results) >= limit:
-                break
-            remaining = limit - len(results)
-            jobs = self.safe_fetch_jobs(
-                company_slug=slug,
-                query=query,
-                location=location,
-                limit=min(15, remaining),
-                company_display_name=name,
-            )
-            results.extend(jobs)
-        return results
+        return _fetch_companies_concurrently(self, merged, query, location, limit, per_company_limit=15)
 
 
 # ============================================================================
@@ -962,23 +958,7 @@ class SmartRecruitersScraper(BaseScraper):
 
         custom_slugs = {t[0] for t in target_list}
         merged = target_list + [(s, n, False) for s, n in self.DEFAULT_COMPANIES if s not in custom_slugs]
-
-        results: List[JobPosting] = []
-        for slug, name, is_custom in merged:
-            if len(results) >= limit:
-                break
-            remaining = limit - len(results)
-            jobs = self.safe_fetch_jobs(
-                company_slug=slug,
-                query=query,
-                location=location,
-                limit=min(15, remaining),
-                company_display_name=name,
-                is_custom_target=is_custom,
-            )
-            results.extend(jobs)
-
-        return results
+        return _fetch_companies_concurrently(self, merged, query, location, limit, per_company_limit=15)
 
 
 # ============================================================================

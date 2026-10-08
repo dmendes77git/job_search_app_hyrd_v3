@@ -124,20 +124,44 @@ def normalize_company_slug(comp: str) -> str:
 # 3. LEGACY RESILIENCE HELPERS (Preserved for backward compatibility)
 # ============================================================================
 
+_SHARED_JSON_CLIENT: Optional[httpx.Client] = None
+
+
+def get_shared_json_client() -> httpx.Client:
+    """Provide a thread-safe pooled httpx.Client for fast JSON fetches."""
+    global _SHARED_JSON_CLIENT
+    if _SHARED_JSON_CLIENT is None or _SHARED_JSON_CLIENT.is_closed:
+        _SHARED_JSON_CLIENT = httpx.Client(
+            timeout=8.0,
+            follow_redirects=True,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=40),
+            headers=HTTP_HEADERS,
+        )
+    return _SHARED_JSON_CLIENT
+
+
 def safe_fetch_json(
     url: str,
     headers: Optional[Dict[str, str]] = None,
     timeout: int = 8,
 ) -> Optional[Any]:
-    """Safely fetch and parse a JSON endpoint with timeout and exception containment."""
+    """Safely fetch and parse a JSON endpoint with keep-alive pooling, timeout and exception containment."""
     hdrs = headers or HTTP_HEADERS
+    try:
+        client = get_shared_json_client()
+        resp = client.get(url, headers=hdrs, timeout=timeout)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as exc:
+        logger.debug(f"HTTPX fetch failed for {url}: {exc}, falling back to urllib")
+
     try:
         req = urllib.request.Request(url, headers=hdrs)
         with urllib.request.urlopen(req, timeout=timeout) as response:
             raw = response.read().decode("utf-8")
             return json.loads(raw)
     except Exception as exc:
-        logger.debug(f"Fetch failed for {url}: {exc}")
+        logger.debug(f"Legacy fetch failed for {url}: {exc}")
         return None
 
 
@@ -187,9 +211,9 @@ class BaseScraper(ABC):
 
     def __init__(
         self,
-        timeout: float = 12.0,
-        max_retries: int = 3,
-        rate_limit_delay: float = 0.2,
+        timeout: float = 8.0,
+        max_retries: int = 2,
+        rate_limit_delay: float = 0.15,
         client: Optional[httpx.Client] = None,
         transport: Optional[httpx.BaseTransport] = None,
         **kwargs: Any,
@@ -253,7 +277,7 @@ class BaseScraper(ABC):
         req_timeout = timeout or self.timeout
         retrying = Retrying(
             stop=stop_after_attempt(self.max_retries),
-            wait=wait_exponential(multiplier=1, min=1.0, max=8.0),
+            wait=wait_exponential(multiplier=0.6, min=0.5, max=2.5),
             retry=retry_if_exception(_is_transient_http_error),
             reraise=True,
         )

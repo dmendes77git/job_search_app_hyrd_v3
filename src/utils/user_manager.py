@@ -6,6 +6,7 @@ for multiple candidate accounts across the application.
 
 from datetime import date, datetime
 from enum import Enum
+import copy
 import json
 import logging
 import os
@@ -19,6 +20,19 @@ import streamlit as st
 
 BASE_DATA_DIR = Path("data/users")
 REGISTRY_FILE = BASE_DATA_DIR / "registry.json"
+
+_REGISTRY_CACHE: Optional[Dict[str, Any]] = None
+_PROFILE_CACHE: Dict[str, Dict[str, Any]] = {}
+_WORKSPACE_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def clear_user_cache() -> None:
+    """Clear all in-memory user, profile, and registry caches."""
+    global _REGISTRY_CACHE
+    _REGISTRY_CACHE = None
+    _PROFILE_CACHE.clear()
+    _WORKSPACE_CACHE.clear()
+
 
 AVATAR_COLORS = {
     "#2563eb": "🔵 Royal Blue",
@@ -40,6 +54,7 @@ def make_json_serializable(obj: Any) -> Any:
     """
     Recursively convert datetime, date, set, UUID, Enum, Path, and custom models
     to clean JSON-serializable primitives.
+    Optimized with fast-path detection for primitive containers to reduce overhead.
     """
     if obj is None or isinstance(obj, (str, int, float, bool)):
         return obj
@@ -52,8 +67,12 @@ def make_json_serializable(obj: Any) -> Any:
     if isinstance(obj, Path):
         return str(obj)
     if isinstance(obj, (set, list, tuple)):
+        if isinstance(obj, list) and all(item is None or isinstance(item, (str, int, float, bool)) for item in obj):
+            return obj
         return [make_json_serializable(item) for item in obj]
     if isinstance(obj, dict):
+        if all(isinstance(k, str) and (v is None or isinstance(v, (str, int, float, bool))) for k, v in obj.items()):
+            return obj
         return {str(k): make_json_serializable(v) for k, v in obj.items()}
     if hasattr(obj, "model_dump"):
         try:
@@ -74,23 +93,33 @@ def _ensure_dir(path: Path) -> Path:
 
 def get_registry() -> Dict[str, Any]:
     """Retrieve the global user registry index."""
+    global _REGISTRY_CACHE
+    if _REGISTRY_CACHE is not None:
+        return copy.deepcopy(_REGISTRY_CACHE)
+
     _ensure_dir(BASE_DATA_DIR)
     if not REGISTRY_FILE.exists():
         _create_default_registry()
     try:
         with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            _REGISTRY_CACHE = copy.deepcopy(data)
+            return data
     except Exception as e:
         logging.warning(f"Could not read user registry ({e}). Resetting registry.")
-        return _create_default_registry()
+        res = _create_default_registry()
+        _REGISTRY_CACHE = copy.deepcopy(res)
+        return res
 
 
 def save_registry(registry_data: Dict[str, Any]) -> None:
     """Save the global user registry index."""
+    global _REGISTRY_CACHE
     _ensure_dir(BASE_DATA_DIR)
     clean_reg = make_json_serializable(registry_data)
     with open(REGISTRY_FILE, "w", encoding="utf-8") as f:
         json.dump(clean_reg, f, indent=2, ensure_ascii=False, default=str)
+    _REGISTRY_CACHE = copy.deepcopy(clean_reg)
 
 
 def get_all_users() -> List[Dict[str, Any]]:
@@ -128,11 +157,18 @@ def get_user_dir(user_id: str, create: bool = True) -> Path:
 
 def get_user_profile(user_id: str) -> Dict[str, Any]:
     """Load the full LinkedIn-like profile data for a specific user."""
+    if not user_id:
+        return {}
+    if user_id in _PROFILE_CACHE:
+        return copy.deepcopy(_PROFILE_CACHE[user_id])
+
     p_path = BASE_DATA_DIR / user_id / "profile.json"
     if p_path.exists():
         try:
             with open(p_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                prof = json.load(f)
+                _PROFILE_CACHE[user_id] = copy.deepcopy(prof)
+                return prof
         except Exception as e:
             logging.error(f"Error loading profile for {user_id}: {e}")
     return {}
@@ -145,6 +181,14 @@ def save_user_profile(user_id: str, profile_data: Dict[str, Any]) -> None:
     clean_profile = make_json_serializable(profile_data)
     with open(p_path, "w", encoding="utf-8") as f:
         json.dump(clean_profile, f, indent=2, ensure_ascii=False, default=str)
+
+    _PROFILE_CACHE[user_id] = copy.deepcopy(clean_profile)
+    try:
+        if st.session_state.get("active_user_id") == user_id:
+            st.session_state.active_user_profile = copy.deepcopy(clean_profile)
+            st.session_state._cached_active_id = user_id
+    except Exception:
+        pass
 
     # Update summary in registry
     reg = get_registry()
@@ -173,11 +217,28 @@ def save_user_profile(user_id: str, profile_data: Dict[str, Any]) -> None:
 
 def get_user_workspace(user_id: str) -> Dict[str, Any]:
     """Load the user's dedicated saved area / workspace."""
+    if not user_id:
+        return {
+            "application_pipeline": {},
+            "saved_jobs": [],
+            "applied_jobs": [],
+            "customized_cvs": {},
+            "customized_cover_letters": {},
+            "interview_prep_packs": {},
+            "outreach_campaigns": {},
+            "discovered_jobs": [],
+            "search_history": [],
+        }
+    if user_id in _WORKSPACE_CACHE:
+        return copy.deepcopy(_WORKSPACE_CACHE[user_id])
+
     w_path = BASE_DATA_DIR / user_id / "workspace.json"
     if w_path.exists():
         try:
             with open(w_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                ws = json.load(f)
+                _WORKSPACE_CACHE[user_id] = copy.deepcopy(ws)
+                return ws
         except Exception as e:
             logging.error(f"Error loading workspace for {user_id}: {e}")
     return {
@@ -201,6 +262,9 @@ def save_user_workspace(user_id: str, workspace_data: Dict[str, Any]) -> None:
 
     with open(w_path, "w", encoding="utf-8") as f:
         json.dump(clean_workspace, f, indent=2, ensure_ascii=False, default=str)
+
+    _WORKSPACE_CACHE[user_id] = copy.deepcopy(clean_workspace)
+
 
 
 def create_user(profile_data: Dict[str, Any], initial_workspace: Optional[Dict[str, Any]] = None) -> str:
@@ -263,6 +327,9 @@ def delete_user(user_id: str) -> bool:
         reg["active_user_id"] = remaining[0] if remaining else ""
         st.session_state.active_user_id = reg["active_user_id"]
 
+    _PROFILE_CACHE.pop(user_id, None)
+    _WORKSPACE_CACHE.pop(user_id, None)
+
     save_registry(reg)
     return True
 
@@ -295,6 +362,8 @@ def load_user_into_session(user_id: str) -> None:
     st.session_state.resume_text = profile.get("resume_text", "")
     st.session_state.parsed_profile = profile
     st.session_state.candidate_profile = profile
+    st.session_state.active_user_profile = profile
+    st.session_state._cached_active_id = user_id
 
     # Populate workspace fields
     st.session_state.application_pipeline = workspace.get("application_pipeline", {})

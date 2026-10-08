@@ -7,6 +7,7 @@ automatic 503/429 backoff retry, and robust JSON/text generation.
 import json
 import logging
 import os
+import random
 import re
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -178,9 +179,15 @@ def generate_gemini_content(
                 # If model is not found, skip directly to the next model in cascade
                 if "404" in err_str or "not found" in err_str:
                     break
-                # Retry once on transient capacity issues
-                if any(k in err_str for k in ["503", "429", "unavailable", "high demand", "capacity", "spikes in demand"]) and attempt < max_retries_per_model - 1:
-                    time.sleep(backoff_delay)
+                # Immediate failover on 503 capacity / high demand spikes: skip retry, failover to next model
+                if any(k in err_str for k in ["503", "unavailable", "high demand", "capacity", "spikes in demand", "overloaded"]):
+                    logger.warning(f"Model {model_name} overloaded (503/capacity). Fast failover to next cascade tier.")
+                    break
+                # Jittered backoff retry on 429 rate limit / quota
+                if any(k in err_str for k in ["429", "quota", "resource_exhausted"]) and attempt < max_retries_per_model - 1:
+                    jittered_delay = min(0.5 * (2 ** attempt) + random.uniform(0, 0.2), 1.5)
+                    logger.info(f"Model {model_name} rate limited (429). Retrying in {jittered_delay:.2f}s...")
+                    time.sleep(jittered_delay)
                     continue
                 break
 

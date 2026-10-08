@@ -18,6 +18,7 @@ import os
 import re
 import time
 from typing import Any, Dict, List, Optional
+from src.utils.ats_optimizer import compress_job_context
 from src.utils.document_exporter import _add_formatted_runs, create_interview_prep_docx
 from src.utils.gemini_client import generate_gemini_content
 
@@ -36,7 +37,7 @@ def generate_interview_prep_pack(
     job_title = job.get("title", "Target Role")
     company = job.get("company", "Target Company")
     location = job.get("location", "Remote")
-    job_desc = job.get("description", "")
+    job_desc = compress_job_context(job.get("description", ""), max_chars=1800)
     matched_skills = job.get("matched_skills", [])
     missing_skills = job.get("missing_skills", [])
     key_reasons = job.get("key_reasons", [])
