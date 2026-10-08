@@ -1,10 +1,12 @@
 """
-Hyrd — Autonomous Multi-Agent Career Platform
+Hyrd — Autonomous Multi-Agent Career Platform (v3.0.0-dev)
 Tagline: Don't just search. Get Hyrd!
 Powered by google-antigravity framework and Gemini AI.
 """
 
 from __future__ import annotations
+
+APP_VERSION = "v3.0.0-dev"
 
 import os
 import logging
@@ -146,6 +148,7 @@ def main() -> None:
                     <h1 style="margin: 0; font-size: 1.65rem; color: #ffffff; font-weight: 800; letter-spacing: -0.02em;">
                         Hyrd
                     </h1>
+                    <span style="font-size: 0.72rem; background: rgba(59, 130, 246, 0.25); border: 1px solid rgba(147, 197, 253, 0.4); color: #93c5fd; padding: 2px 7px; border-radius: 9999px; font-weight: 600; letter-spacing: 0.03em;">{APP_VERSION}</span>
                 </div>
                 <div style="font-size: 0.95rem; color: #94a3b8; font-weight: 500;">
                     Don't just search. Get Hyrd!
