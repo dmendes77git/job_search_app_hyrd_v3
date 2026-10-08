@@ -236,6 +236,22 @@ def render_salary_badge(salary_eval: Dict[str, Any]) -> str:
     s_badge_border = salary_eval["badge_border"]
     loc_badge = salary_eval.get("location_badge") or "📍 Market Benchmark"
 
+    imputed_tag = ""
+    if salary_eval.get("is_imputed") and salary_eval.get("imputed_salary_badge"):
+        badge_text = salary_eval["imputed_salary_badge"]
+        imputed_tag = (
+            f"<span style='background: #fdf4ff; color: #86198f; border: 1px solid #f0abfc; "
+            f"padding: 0.12rem 0.5rem; border-radius: 4px; font-size: 0.74rem; font-weight: 600; white-space: nowrap;'>"
+            f"🔮 {badge_text}</span>"
+        )
+    elif salary_eval.get("equity_breakdown"):
+        eq = salary_eval["equity_breakdown"]
+        imputed_tag = (
+            f"<span style='background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; "
+            f"padding: 0.12rem 0.5rem; border-radius: 4px; font-size: 0.74rem; font-weight: 600; white-space: nowrap;'>"
+            f"📈 Equity: {eq['equity_band']} ({eq['stage']})</span>"
+        )
+
     return (
         f"<div style='margin-top: 0.15rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; font-size: 0.95rem;'>"
         f"<span>📊 <strong>Salary Score:</strong> <strong>{score_val}/100</strong></span>"
@@ -243,6 +259,7 @@ def render_salary_badge(salary_eval: Dict[str, Any]) -> str:
         f"{rank_icon} {rank_label}</span>"
         f"<span style='background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; padding: 0.12rem 0.5rem; border-radius: 4px; font-size: 0.74rem; font-weight: 500; white-space: nowrap;'>"
         f"{loc_badge}</span>"
+        f"{imputed_tag}"
         f"</div>"
     )
 

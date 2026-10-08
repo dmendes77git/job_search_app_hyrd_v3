@@ -23,10 +23,10 @@ def extract_text_from_file(uploaded_file) -> str:
         return _extract_pdf(file_bytes)
     elif file_name.endswith(".docx"):
         return _extract_docx(file_bytes)
-    elif file_name.endswith(".txt"):
+    elif file_name.endswith(".txt") or file_name.endswith(".md"):
         return _extract_txt(file_bytes)
     else:
-        raise ValueError(f"Unsupported file format: {file_name}. Please upload a .pdf, .docx, or .txt file.")
+        raise ValueError(f"Unsupported file format: {file_name}. Please upload a .pdf, .docx, .txt, or .md file.")
 
 
 def _extract_pdf(file_bytes: bytes) -> str:
@@ -74,3 +74,70 @@ def _extract_txt(file_bytes: bytes) -> str:
         return file_bytes.decode("utf-8").strip()
     except UnicodeDecodeError:
         return file_bytes.decode("latin-1", errors="ignore").strip()
+
+
+def normalize_resume_sections(text: str) -> dict:
+    """
+    Parse unstructured or markdown resume text into standardized semantic sections:
+    summary, skills, experience, education, projects, certifications, other.
+    """
+    if not text:
+        return {
+            "summary": "",
+            "skills": "",
+            "experience": "",
+            "education": "",
+            "projects": "",
+            "certifications": "",
+            "raw": "",
+        }
+
+    lines = text.split("\n")
+    sections = {
+        "summary": [],
+        "skills": [],
+        "experience": [],
+        "education": [],
+        "projects": [],
+        "certifications": [],
+        "header": [],
+        "other": [],
+    }
+
+    current_sec = "header"
+
+    def match_heading(line_clean: str) -> Optional[str]:
+        l = line_clean.strip("#*-: \t").lower()
+        if not l or len(l) > 40:
+            return None
+        if any(k in l for k in ["summary", "profile", "about me", "objective", "executive"]):
+            return "summary"
+        if any(k in l for k in ["skill", "competenc", "stack", "technolog", "proficienc"]):
+            return "skills"
+        if any(k in l for k in ["experience", "employment", "work history", "career", "professional background"]):
+            return "experience"
+        if any(k in l for k in ["education", "academic", "degree", "university"]):
+            return "education"
+        if any(k in l for k in ["project", "open source", "portfolio"]):
+            return "projects"
+        if any(k in l for k in ["certificat", "license", "credential", "award"]):
+            return "certifications"
+        return None
+
+    for line in lines:
+        detected = match_heading(line)
+        if detected:
+            current_sec = detected
+            continue
+        sections[current_sec].append(line)
+
+    return {
+        "summary": "\n".join(sections["summary"]).strip(),
+        "skills": "\n".join(sections["skills"]).strip(),
+        "experience": "\n".join(sections["experience"]).strip(),
+        "education": "\n".join(sections["education"]).strip(),
+        "projects": "\n".join(sections["projects"]).strip(),
+        "certifications": "\n".join(sections["certifications"]).strip(),
+        "raw": text.strip(),
+    }
+

@@ -6,6 +6,7 @@ Built using the google-antigravity framework with strict Pydantic v2 contracts.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Any, Dict, List, Optional, Union
 
@@ -36,12 +37,39 @@ logger = logging.getLogger("Hyrd.ProfileAgent")
 
 
 # ============================================================================
-# RECRUITER READINESS & GAP ANALYSIS ENGINE
+# RECRUITER READINESS & REAL-TIME RADAR ENGINE (Feature P1-D)
 # ============================================================================
+
+POWER_VERBS = {
+    "architected", "spearheaded", "accelerated", "orchestrated", "engineered",
+    "deployed", "scaled", "overhauled", "optimized", "championed", "pioneered",
+    "designed", "streamlined", "automated", "built", "developed", "executed",
+    "mentored", "drove", "delivered", "transformed", "established", "instituted",
+    "modernized", "founded", "led", "directed", "authored", "implemented",
+    "consolidated", "maximized", "revamped", "reduced", "boosted", "negotiated",
+}
+
+PASSIVE_VERBS = {
+    "assisted", "helped", "worked on", "responsible for", "participated in",
+    "contributed to", "involved in", "handled", "supported", "tasked with",
+    "aided", "served as", "duties included",
+}
+
+METRIC_PATTERNS = [
+    re.compile(r"\b\d+(?:\.\d+)?%"),
+    re.compile(r"[\$€£]\s*\d+(?:[,\.]\d+)?\s*(?:k|m|b|million|billion)?", re.IGNORECASE),
+    re.compile(r"\b\d+[\.,]?\d*\s*(?:k|m|b|million|billion|users|customers|clients|queries|qps|rps|req/s|tps)\b", re.IGNORECASE),
+    re.compile(r"\b\d+\s*(?:ms|s|sec|seconds|minutes|hours|days|weeks|months|years)\b", re.IGNORECASE),
+    re.compile(r"\b\d+x\b", re.IGNORECASE),
+    re.compile(r"\b(?:reduced|increased|boosted|saved|scaled|improved)\s+by\s+\d+", re.IGNORECASE),
+    re.compile(r"\bteam of \d+|\b\d+\s*(?:engineers|developers|direct reports|people|members)\b", re.IGNORECASE),
+]
+
 
 def analyze_recruiter_gaps(profile: UserProfile) -> Dict[str, Any]:
     """Perform a 100% Recruiter Readiness benchmark audit against the extracted profile.
-    Checks contact completeness, experience quantification, and technical depth.
+    Checks contact completeness, experience quantification, technical depth,
+    action verb power ratio, metric density, and ATS formatting hygiene (Feature P1-D).
     """
     score = 100
     missing_elements: List[str] = []
@@ -49,8 +77,10 @@ def analyze_recruiter_gaps(profile: UserProfile) -> Dict[str, Any]:
     recommendations: List[str] = []
 
     # 1. Contact Info Audit
+    contact_score = 100
     if not profile.email:
         score -= 15
+        contact_score -= 35
         missing_elements.append("Email contact address missing")
         recommendations.append("Provide a direct professional email address for recruiter reachout.")
     else:
@@ -58,6 +88,7 @@ def analyze_recruiter_gaps(profile: UserProfile) -> Dict[str, Any]:
 
     if not profile.phone:
         score -= 10
+        contact_score -= 25
         missing_elements.append("Phone number missing")
         recommendations.append("Add a direct phone number to facilitate recruiter scheduling.")
     else:
@@ -65,27 +96,102 @@ def analyze_recruiter_gaps(profile: UserProfile) -> Dict[str, Any]:
 
     if not profile.linkedin_url:
         score -= 10
+        contact_score -= 20
         missing_elements.append("LinkedIn profile link not detected")
         recommendations.append("Include your public LinkedIn profile link for social proof validation.")
     else:
         strengths.append("LinkedIn profile detected.")
+    contact_score = max(20.0, float(contact_score))
 
     # 2. Skills & Technical Depth
     skills_count = len(profile.extracted_skills)
     if skills_count < 4:
         score -= 20
+        competency_score = 45.0
         missing_elements.append("Low technical skills density (< 4 detected)")
         recommendations.append("List at least 6-8 core technical competencies to improve ATS searchability.")
     else:
+        competency_score = min(100.0, 60.0 + skills_count * 4.5)
         strengths.append(f"Strong competency footprint with {skills_count} recognized core skills.")
 
-    # 3. Experience Quantification
-    if not profile.experience_highlights:
+    # 3. Bullets, Action Verbs & Metric Quantification Analysis
+    bullets = list(profile.experience_highlights or [])
+    if not bullets and profile.raw_resume_text:
+        # Extract potential bullets from raw resume text
+        for line in profile.raw_resume_text.splitlines():
+            sline = line.strip()
+            if sline.startswith(("-", "*", "•", "–")) and len(sline) > 15:
+                bullets.append(sline.lstrip("-*•– "))
+
+    # 3a. Experience Quantification
+    if not bullets:
         score -= 15
+        quantification_density_pct = 0.0
+        action_verb_power_index = 50.0
         missing_elements.append("Missing quantified career accomplishments")
         recommendations.append("Add 3-5 bullet points with metrics (e.g. '% reduction', '$ savings', 'users served').")
     else:
-        strengths.append(f"Documented {len(profile.experience_highlights)} quantified impact achievements.")
+        quantified_count = sum(1 for b in bullets if any(p.search(b) for p in METRIC_PATTERNS))
+        quantification_density_pct = round((quantified_count / len(bullets)) * 100.0, 1)
+
+        if quantification_density_pct >= 60.0:
+            strengths.append(f"High metric density: {quantification_density_pct}% of accomplishments feature hard numbers.")
+        elif quantification_density_pct >= 30.0:
+            strengths.append(f"Moderate metric quantification: {quantification_density_pct}% with KPI evidence.")
+        else:
+            score -= 10
+            missing_elements.append(f"Low metric density ({quantification_density_pct}%). Recruiters favor quantified impact.")
+            recommendations.append("Use 1-Click Auto-Quantify to inject metric benchmarks into your experience statements.")
+
+        # 3b. Action Verb Power Index
+        power_hits = 0
+        passive_hits = 0
+        for b in bullets:
+            words = [w.strip(".,;:()[]\"'").lower() for w in b.split()[:8]]
+            for w in words:
+                if w in POWER_VERBS:
+                    power_hits += 1
+                elif w in PASSIVE_VERBS:
+                    passive_hits += 1
+
+        if (power_hits + passive_hits) > 0:
+            power_ratio = power_hits / (power_hits + passive_hits)
+            action_verb_power_index = round(min(100.0, max(25.0, power_ratio * 100.0)), 1)
+        else:
+            action_verb_power_index = 75.0
+
+        if action_verb_power_index >= 75.0:
+            strengths.append(f"Strong leadership voice: {action_verb_power_index}% Action Verb Power Index.")
+        else:
+            recommendations.append("Upgrade passive verbs ('worked on', 'assisted') to executive power verbs ('architected', 'spearheaded').")
+
+    # 4. ATS Formatting Hygiene
+    raw = profile.raw_resume_text or ""
+    ats_issues: List[str] = []
+    hygiene_score = 100
+
+    special_glyphs = [c for c in raw if c in "★●■➔✔►◆§▲▼◈✓✕"]
+    if special_glyphs:
+        hygiene_score -= 15
+        ats_issues.append(f"Non-standard Unicode symbols detected ({len(special_glyphs)} instances e.g. '{special_glyphs[0]}'). These can corrupt older ATS parsers.")
+
+    if "|---" in raw or raw.count(" | ") > 8:
+        hygiene_score -= 15
+        ats_issues.append("Complex multi-column or table formatting detected. Tables often break ATS parsers (Taleo, iCIMS).")
+
+    if "\t\t" in raw:
+        hygiene_score -= 10
+        ats_issues.append("Heavy tab character indentation detected; single space formatting is recommended.")
+
+    non_ascii_chars = [c for c in raw if ord(c) > 127 and c not in "éáíóúñãõç€£•—–“”‘’"]
+    if len(non_ascii_chars) > 6:
+        hygiene_score -= 10
+        ats_issues.append("Unusual non-ASCII encoding artifacts detected in resume text.")
+
+    if not ats_issues:
+        ats_issues.append("No ATS formatting friction detected. Resume text is clean and parser-safe.")
+
+    ats_hygiene_score = max(30, hygiene_score)
 
     readiness_score = max(20, min(100, score))
     readiness_label = (
@@ -94,12 +200,166 @@ def analyze_recruiter_gaps(profile: UserProfile) -> Dict[str, Any]:
         else "Calibration Needed"
     )
 
+    radar_metrics = {
+        "Action Verb Power": action_verb_power_index,
+        "Metric Quantification": quantification_density_pct,
+        "ATS Formatting Hygiene": float(ats_hygiene_score),
+        "Contact Completeness": contact_score,
+        "Technical Competency Depth": competency_score,
+    }
+
+    # Actionable 1-Click Remediations
+    actionable_remediations: List[Dict[str, str]] = []
+    if not profile.email:
+        actionable_remediations.append({
+            "gap": "Missing Email",
+            "category": "contact",
+            "action": "Add Contact Email",
+            "suggested_fix": "Provide a clean personal email in profile header.",
+        })
+    if not profile.linkedin_url:
+        actionable_remediations.append({
+            "gap": "Missing LinkedIn",
+            "category": "social",
+            "action": "Add LinkedIn Link",
+            "suggested_fix": "Add https://linkedin.com/in/username to boost recruiter credibility.",
+        })
+    if quantification_density_pct < 60.0:
+        actionable_remediations.append({
+            "gap": f"Low Metric Density ({quantification_density_pct}%)",
+            "category": "quantification",
+            "action": "⚡ 1-Click Auto-Quantify Bullet",
+            "suggested_fix": "Transform passive bullets into STAR-quantified statements.",
+        })
+    if action_verb_power_index < 70.0:
+        actionable_remediations.append({
+            "gap": f"Passive Voice ({action_verb_power_index}% Power Index)",
+            "category": "verbs",
+            "action": "Upgrade to Leadership Action Verbs",
+            "suggested_fix": "Replace 'worked on' or 'assisted' with 'architected', 'spearheaded', or 'engineered'.",
+        })
+
     return {
         "readiness_score": readiness_score,
         "readiness_label": readiness_label,
         "missing_elements": missing_elements,
         "strengths": strengths,
         "recommendations": recommendations,
+        "action_verb_power_index": action_verb_power_index,
+        "quantification_density_pct": quantification_density_pct,
+        "ats_hygiene_score": ats_hygiene_score,
+        "ats_hygiene_issues": ats_issues,
+        "radar_metrics": radar_metrics,
+        "actionable_remediations": actionable_remediations,
+    }
+
+
+def auto_quantify_bullet(
+    bullet: str,
+    context: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    1-Click Auto-Remediation (Feature P1-D):
+    Transforms passive, vague bullet points into active, quantified STAR accomplishments.
+    Uses Gemini when api_key is available, with deterministic STAR heuristic transformer fallback.
+    """
+    cleaned = (bullet or "").strip()
+    if not cleaned:
+        return {
+            "original": "",
+            "quantified": "",
+            "verb_upgraded": "",
+            "metrics_added": [],
+            "star_components": {"situation_task": "", "action": "", "result": ""},
+            "status": "empty_input",
+        }
+
+    # Attempt Gemini call if API key provided
+    if api_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            prompt = (
+                "You are an executive tech resume writer. Rewrite the following resume bullet into a high-impact, "
+                "STAR-quantified statement. Begin with an executive power verb (e.g. Architected, Spearheaded, Engineered). "
+                "Incorporate realistic quantified metrics (percentage improvement, latency cut, dollar savings, or scale). "
+                "Return ONLY the rewritten bullet sentence without markdown formatting or commentary.\n\n"
+                f"Original bullet: {cleaned}\n"
+                f"Context: {context or 'Software Engineering'}"
+            )
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+            rewritten = response.text.strip().lstrip("-*• ")
+            if rewritten and len(rewritten) > 20:
+                first_word = rewritten.split()[0].rstrip(":,.")
+                return {
+                    "original": cleaned,
+                    "quantified": rewritten,
+                    "verb_upgraded": first_word,
+                    "metrics_added": ["AI-calibrated quantified impact"],
+                    "star_components": {
+                        "situation_task": context or "Production engineering demand",
+                        "action": rewritten,
+                        "result": "Quantified efficiency & reliability gain",
+                    },
+                    "status": "success_gemini",
+                }
+        except Exception as exc:
+            logger.warning(f"Live Gemini auto-quantify failed ({exc}), falling back to deterministic transformer.")
+
+    # Deterministic STAR Transformer Fallback
+    b_lower = cleaned.lower()
+    metrics_added = []
+
+    # Detect domain & action
+    if any(k in b_lower for k in ["api", "backend", "fastapi", "python", "service", "microservice", "database", "sql"]):
+        power_verb = "Architected and deployed high-throughput backend services"
+        metric_str = "reducing p99 API response latency by 45% while scaling transaction volume to 3.2M daily queries"
+        metrics_added = ["45% p99 latency reduction", "3.2M daily queries"]
+    elif any(k in b_lower for k in ["cloud", "k8s", "kubernetes", "docker", "infra", "aws", "gcp", "devops"]):
+        power_verb = "Spearheaded cloud infrastructure automation"
+        metric_str = "slashing deployment cycle times by 60% and reducing monthly cloud compute expenses by $24,000"
+        metrics_added = ["60% faster deployments", "$24,000 monthly cloud cost savings"]
+    elif any(k in b_lower for k in ["ai", "llm", "ml", "model", "pipeline", "agent", "deep learning"]):
+        power_verb = "Engineered autonomous AI inference pipelines"
+        metric_str = "improving prompt-completion throughput by 3.4x with 99.95% availability across production workloads"
+        metrics_added = ["3.4x throughput boost", "99.95% system availability"]
+    elif any(k in b_lower for k in ["lead", "manage", "team", "mentor", "agile", "sprint", "hiring"]):
+        power_verb = "Orchestrated cross-functional engineering initiatives"
+        metric_str = "increasing sprint delivery velocity by 32% and mentoring 6 junior engineers to senior promotions"
+        metrics_added = ["32% sprint velocity gain", "6 engineers mentored"]
+    elif any(k in b_lower for k in ["frontend", "ui", "ux", "react", "streamlit", "web", "css"]):
+        power_verb = "Designed and shipped responsive user interfaces"
+        metric_str = "accelerating user onboarding conversion by 28% and eliminating clientside UI render latency"
+        metrics_added = ["28% conversion lift", "sub-100ms render speeds"]
+    else:
+        power_verb = "Spearheaded core technical initiatives"
+        metric_str = "driving a 35% improvement in operational throughput and saving 15+ engineering hours weekly"
+        metrics_added = ["35% operational throughput boost", "15 hrs/week saved"]
+
+    # Strip passive prefixes if present
+    stripped = cleaned
+    for prefix in ["assisted with", "helped to", "worked on", "responsible for", "participated in", "contributed to", "involved in", "handled", "managed"]:
+        if stripped.lower().startswith(prefix):
+            stripped = stripped[len(prefix):].strip(" ,;:-")
+            break
+
+    quantified_bullet = f"{power_verb} for {stripped}, {metric_str}."
+
+    return {
+        "original": cleaned,
+        "quantified": quantified_bullet,
+        "verb_upgraded": power_verb.split()[0],
+        "metrics_added": metrics_added,
+        "star_components": {
+            "situation_task": stripped,
+            "action": power_verb,
+            "result": metric_str,
+        },
+        "status": "success_deterministic",
     }
 
 
@@ -182,6 +442,7 @@ class ProfileAgent:
         self.tool_runner.register(extract_text_from_file, "extract_text_from_file")
         self.tool_runner.register(_heuristic_fallback_parser, "heuristic_parser")
         self.tool_runner.register(analyze_recruiter_gaps, "analyze_recruiter_gaps")
+        self.tool_runner.register(auto_quantify_bullet, "auto_quantify_bullet")
 
     def run(self, input_payload: ProfileAgentInput) -> ProfileAgentOutput:
         """Execute Stage 1 (Document Extraction) and Stage 2 (Entity Calibration)."""

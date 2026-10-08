@@ -9,7 +9,11 @@ import streamlit as st
 from src.state import SCREEN_INPUT, SCREEN_SEARCHING, go_to_screen
 from src.mock_data import SAMPLE_PARSED_PROFILE
 from src.agents.matching.scoring import evaluate_role_match
-from src.agents.profile_agent import categorize_competencies
+from src.agents.profile_agent import (
+    categorize_competencies,
+    analyze_recruiter_gaps,
+    auto_quantify_bullet,
+)
 
 
 @st.dialog("📋 Recruiter Role Fit Analysis", width="medium")
@@ -209,6 +213,104 @@ def render_screen2() -> None:
                 """,
                 unsafe_allow_html=True,
             )
+
+    # Feature P1-D: Real-Time Recruiter Readiness Radar & 1-Click Gap Remediation
+    gaps_data = st.session_state.get("recruiter_gap_analysis")
+    if not gaps_data:
+        from src.schemas import UserProfile
+        try:
+            u_prof = UserProfile(**{k: v for k, v in profile.items() if k in UserProfile.model_fields})
+            gaps_data = analyze_recruiter_gaps(u_prof)
+            st.session_state.recruiter_gap_analysis = gaps_data
+        except Exception:
+            gaps_data = None
+
+    if gaps_data:
+        readiness_score = gaps_data.get("readiness_score", 85)
+        readiness_label = gaps_data.get("readiness_label", "Strong Contender")
+        radar = gaps_data.get("radar_metrics", {})
+
+        with st.container(border=True):
+            r_head1, r_head2 = st.columns([3, 1], vertical_alignment="center")
+            with r_head1:
+                st.markdown(
+                    f"#### 📡 Recruiter Readiness Radar & ATS Audit (P1-D)\n"
+                    f"<span style='font-size: 0.85rem; color: #64748b;'>"
+                    f"Real-time benchmark evaluating leadership action verbs, hard metric density, and ATS formatting hygiene."
+                    f"</span>",
+                    unsafe_allow_html=True,
+                )
+            with r_head2:
+                st.markdown(
+                    f"<div style='text-align: right;'>"
+                    f"<span style='background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; "
+                    f"padding: 0.35rem 0.75rem; border-radius: 9999px; font-size: 0.84rem; font-weight: 700; white-space: nowrap;'>"
+                    f"🎯 {readiness_score}% • {readiness_label}</span></div>",
+                    unsafe_allow_html=True,
+                )
+
+            # 5 Radar Metric Columns
+            m_cols = st.columns(5)
+            metric_keys = [
+                ("Action Verb Power", "⚡", "%"),
+                ("Metric Quantification", "📊", "%"),
+                ("ATS Formatting Hygiene", "🧼", "/100"),
+                ("Contact Completeness", "📞", "/100"),
+                ("Technical Competency Depth", "🛠️", "/100"),
+            ]
+            for m_idx, (m_label, m_icon, m_unit) in enumerate(metric_keys):
+                val = radar.get(m_label, 80)
+                m_color = "#166534" if val >= 80 else "#b45309" if val >= 60 else "#b91c1c"
+                with m_cols[m_idx]:
+                    st.markdown(
+                        f"""
+                        <div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.5rem 0.6rem; text-align: center;'>
+                            <div style='font-size: 0.72rem; color: #64748b; font-weight: 600; text-transform: uppercase;'>{m_icon} {m_label[:14]}</div>
+                            <div style='font-size: 1.15rem; font-weight: 800; color: {m_color}; margin-top: 0.2rem;'>{int(val)}{m_unit}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+            # 1-Click Remediation & Bullet Auto-Quantifier Expander
+            with st.expander("⚡ 1-Click Auto-Remediation & STAR Bullet Optimizer", expanded=False):
+                st.markdown(
+                    "Transform vague or passive experience statements into **ATS-optimized, STAR-quantified bullet points** "
+                    "with executive action verbs and metric evidence."
+                )
+
+                sample_bullet = ""
+                highlights = profile.get("experience_highlights", [])
+                if highlights:
+                    sample_bullet = highlights[0]
+
+                bullet_input = st.text_area(
+                    "Draft Experience Bullet to Quantify:",
+                    value=st.session_state.get("draft_bullet_to_quantify", sample_bullet),
+                    key="txt_bullet_quantify_input",
+                    height=70,
+                    placeholder="e.g. Worked on optimizing database queries and backend API endpoints.",
+                )
+
+                q_col1, q_col2 = st.columns([1, 2])
+                with q_col1:
+                    if st.button("⚡ Auto-Quantify Bullet", use_container_width=True, type="primary"):
+                        with st.spinner("Upgrading bullet using STAR framework & executive verbs..."):
+                            q_res = auto_quantify_bullet(
+                                bullet=bullet_input,
+                                context=target_role,
+                                api_key=st.session_state.get("gemini_api_key"),
+                            )
+                            st.session_state.last_quantified_bullet_result = q_res
+
+                quant_res = st.session_state.get("last_quantified_bullet_result")
+                if quant_res and quant_res.get("quantified"):
+                    st.markdown("##### ✨ Quantified STAR Accomplishment:")
+                    st.success(f"**{quant_res['quantified']}**")
+                    if quant_res.get("metrics_added"):
+                        st.caption(f"📈 **Injected Metrics & Power Verb:** `{quant_res.get('verb_upgraded')}` • {', '.join(quant_res['metrics_added'])}")
+
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
     col1, col2 = st.columns(2, gap="large")
 

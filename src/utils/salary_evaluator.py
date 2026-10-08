@@ -390,6 +390,225 @@ def resolve_location_factor(
     return 1.00, "Global / US Baseline", "$", 1.00
 
 
+# ============================================================================
+# MARKET SALARY IMPUTATION & EQUITY REWARDS ENGINE (Feature P2-D)
+# ============================================================================
+
+HIGH_DEMAND_STACK_KEYWORDS = {
+    "ai", "llm", "llms", "machine learning", "deep learning", "pytorch",
+    "distributed systems", "system architecture", "rust", "golang", "go",
+    "kubernetes", "k8s", "agentic ai", "generative ai", "cloud architecture",
+}
+
+
+def estimate_equity_grant(
+    stage_or_text: str = "",
+    seniority_tier: str = "senior",
+    role_title: str = "",
+) -> Dict[str, Any]:
+    """
+    Estimate equity grant bands and total rewards based on company stage and seniority tier (Feature P2-D).
+    Supports Pre-Seed, Seed, Series A, Series B, Series C+, and Public/Enterprise.
+    """
+    text_lower = f"{stage_or_text} {role_title}".lower()
+
+    # Detect stage
+    if "pre-seed" in text_lower or "pre seed" in text_lower:
+        stage = "Pre-Seed"
+    elif "seed" in text_lower:
+        stage = "Seed"
+    elif "series a" in text_lower:
+        stage = "Series A"
+    elif "series b" in text_lower:
+        stage = "Series B"
+    elif any(k in text_lower for k in ["series c", "series d", "series e", "growth stage", "late stage"]):
+        stage = "Series C+"
+    elif any(k in text_lower for k in ["public", "nasdaq", "nyse", "enterprise", "fortune 500", "faang", "multinational"]):
+        stage = "Public / Enterprise"
+    else:
+        stage = "Series B / Growth"
+
+    tier = detect_seniority_tier(role_title, seniority_tier) if role_title else seniority_tier
+
+    # Lookup equity matrix
+    if stage in ["Pre-Seed", "Seed"]:
+        brackets = {
+            "executive": ("1.00% - 3.00%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "lead_staff": ("0.50% - 1.50%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "senior": ("0.20% - 0.60%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "mid": ("0.10% - 0.30%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "entry": ("0.05% - 0.15%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+        }
+    elif stage == "Series A":
+        brackets = {
+            "executive": ("0.50% - 1.50%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "lead_staff": ("0.15% - 0.40%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "senior": ("0.08% - 0.20%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "mid": ("0.03% - 0.08%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "entry": ("0.01% - 0.04%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+        }
+    elif stage == "Series B":
+        brackets = {
+            "executive": ("0.25% - 0.75%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "lead_staff": ("0.08% - 0.20%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "senior": ("0.04% - 0.10%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "mid": ("0.015% - 0.04%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "entry": ("0.005% - 0.015%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+        }
+    elif stage == "Series C+":
+        brackets = {
+            "executive": ("0.10% - 0.35%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "lead_staff": ("0.03% - 0.10%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "senior": ("0.015% - 0.04%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "mid": ("0.005% - 0.015%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+            "entry": ("0.002% - 0.008%", "Stock Options", "4-year vesting with 1-year cliff standard"),
+        }
+    else:  # Public / Enterprise
+        brackets = {
+            "executive": ("$120,000 - $350,000 / yr", "RSUs", "Quarterly RSU vesting (4-year grant standard)"),
+            "lead_staff": ("$60,000 - $140,000 / yr", "RSUs", "Quarterly RSU vesting (4-year grant standard)"),
+            "senior": ("$35,000 - $75,000 / yr", "RSUs", "Quarterly RSU vesting (4-year grant standard)"),
+            "mid": ("$15,000 - $35,000 / yr", "RSUs", "Quarterly RSU vesting (4-year grant standard)"),
+            "entry": ("$5,000 - $15,000 / yr", "RSUs", "Quarterly RSU vesting (4-year grant standard)"),
+        }
+
+    band, eq_type, vesting = brackets.get(tier, brackets.get("senior"))
+
+    return {
+        "stage": stage,
+        "seniority_tier": tier,
+        "equity_band": band,
+        "equity_type": eq_type,
+        "vesting_schedule": vesting,
+        "summary": f"{band} {eq_type} ({vesting})",
+    }
+
+
+def impute_market_salary(
+    job_title: str,
+    target_location: Optional[str] = None,
+    job_location: Optional[str] = None,
+    tech_stack: Optional[list] = None,
+    exp_level_str: str = "",
+) -> Dict[str, Any]:
+    """
+    Predictive Market Salary Imputation (Feature P2-D):
+    Imputes market base salary range using seniority level, location calibration factor,
+    and high-demand tech stack premiums.
+    """
+    domain = detect_role_domain(job_title)
+    tier = detect_seniority_tier(job_title, exp_level_str)
+    base_min, base_max = MARKET_BENCHMARKS.get(domain, MARKET_BENCHMARKS["general"]).get(
+        tier, (140000.0, 185000.0)
+    )
+
+    loc_factor, loc_name, loc_symbol, fx_rate = resolve_location_factor(target_location, job_location)
+
+    # Tech Stack Premium
+    premium_factor = 1.0
+    matched_premiums = []
+    stack_items = list(tech_stack or [])
+    all_tech = f"{' '.join(stack_items)} {job_title}".lower()
+    for kw in HIGH_DEMAND_STACK_KEYWORDS:
+        if kw in all_tech:
+            matched_premiums.append(kw)
+    if matched_premiums:
+        premium_pct = min(0.15, len(matched_premiums) * 0.04)
+        premium_factor += premium_pct
+
+    imputed_min_usd = base_min * loc_factor * premium_factor
+    imputed_max_usd = base_max * loc_factor * premium_factor
+    imputed_mid_usd = (imputed_min_usd + imputed_max_usd) / 2.0
+
+    if fx_rate and loc_symbol in ["€", "£", "CHF"] and loc_factor != 1.00:
+        local_min = int(imputed_min_usd / fx_rate)
+        local_max = int(imputed_max_usd / fx_rate)
+        imputed_range_str = f"{loc_symbol}{local_min:,} - {loc_symbol}{local_max:,} (~${int(imputed_min_usd):,} - ${int(imputed_max_usd):,} USD)"
+        badge_text = f"Estimated: {loc_symbol}{local_min // 1000}k - {loc_symbol}{local_max // 1000}k (Market Imputed)"
+    else:
+        imputed_range_str = f"${int(imputed_min_usd):,} - ${int(imputed_max_usd):,}"
+        badge_text = f"Estimated: ${int(imputed_min_usd) // 1000}k - ${int(imputed_max_usd) // 1000}k (Market Imputed)"
+
+    return {
+        "domain": domain,
+        "tier": tier,
+        "location_name": loc_name,
+        "location_factor": loc_factor,
+        "currency_symbol": loc_symbol,
+        "imputed_min_usd": imputed_min_usd,
+        "imputed_max_usd": imputed_max_usd,
+        "imputed_midpoint_usd": imputed_mid_usd,
+        "imputed_range_str": imputed_range_str,
+        "display_badge": badge_text,
+        "tech_premium_applied": premium_factor > 1.0,
+        "premium_skills": matched_premiums,
+    }
+
+
+def impute_market_salary_and_rewards(
+    job_salary_str: str,
+    job_title: str = "",
+    profile: Optional[Dict[str, Any]] = None,
+    company: str = "",
+    job_description: str = "",
+    target_location: Optional[str] = None,
+    job_location: Optional[str] = None,
+    tech_stack: Optional[list] = None,
+) -> Dict[str, Any]:
+    """
+    Unified entry point for Market Salary Imputation & Total Rewards Equity Breakdown (Feature P2-D).
+    Returns complete compensation structure with inline badges, equity grant bands, and vesting.
+    """
+    parsed = parse_salary_range(job_salary_str)
+    prof = profile or {}
+    cand_exp = prof.get("years_of_experience") or ""
+    cand_target_loc = target_location or prof.get("target_location") or prof.get("location") or ""
+
+    equity_info = estimate_equity_grant(
+        stage_or_text=f"{company} {job_description}",
+        seniority_tier=detect_seniority_tier(job_title, cand_exp),
+        role_title=job_title,
+    )
+
+    if parsed["has_salary"]:
+        min_usd = parsed["min_usd"]
+        max_usd = parsed["max_usd"]
+        mid_usd = parsed["midpoint_usd"]
+        symbol = parsed["currency_symbol"]
+        badge_text = f"Disclosed: {symbol}{int(min_usd) // 1000}k - {symbol}{int(max_usd) // 1000}k"
+        range_str = f"{symbol}{int(min_usd):,} - {symbol}{int(max_usd):,}"
+        is_imputed = False
+    else:
+        imputed = impute_market_salary(
+            job_title=job_title,
+            target_location=cand_target_loc,
+            job_location=job_location,
+            tech_stack=tech_stack or prof.get("core_skills", []),
+            exp_level_str=cand_exp,
+        )
+        min_usd = imputed["imputed_min_usd"]
+        max_usd = imputed["imputed_max_usd"]
+        mid_usd = imputed["imputed_midpoint_usd"]
+        symbol = imputed["currency_symbol"]
+        range_str = imputed["imputed_range_str"]
+        badge_text = imputed["display_badge"]
+        is_imputed = True
+
+    total_rewards_summary = f"{range_str} Base + {equity_info['summary']}"
+
+    return {
+        "is_imputed": is_imputed,
+        "display_badge": badge_text,
+        "base_salary_min_usd": min_usd,
+        "base_salary_max_usd": max_usd,
+        "base_salary_midpoint_usd": mid_usd,
+        "formatted_range": range_str,
+        "currency_symbol": symbol,
+        "equity_breakdown": equity_info,
+        "total_rewards_summary": total_rewards_summary,
+    }
+
+
 def evaluate_job_salary(
     job_salary_str: str,
     job_title: str = "",
@@ -460,6 +679,7 @@ def evaluate_job_salary(
             f"Salary undisclosed in job posting. Evaluated at market standard based on {loc_name} benchmark "
             f"for {tier_label} in {domain.replace('_', ' ').title()} ({bench_range_str})."
         )
+        equity_data = estimate_equity_grant(stage_or_text=job_title, seniority_tier=tier, role_title=job_title)
         return {
             "score": score,
             "rank": rank,
@@ -471,6 +691,9 @@ def evaluate_job_salary(
             "benchmark_title": benchmark_title,
             "assessment": assessment,
             "is_estimated": True,
+            "is_imputed": True,
+            "imputed_salary_badge": f"Estimated: {loc_symbol}{int(bench_min) // 1000}k - {loc_symbol}{int(bench_max) // 1000}k (Market Imputed)",
+            "equity_breakdown": equity_data,
             "location_name": loc_name,
             "location_factor": loc_factor,
             "location_badge": loc_badge,
@@ -529,6 +752,7 @@ def evaluate_job_salary(
             gap = cand_min_num - job_mid
             assessment += f" Below candidate's desired minimum expectation by approx. ${int(gap):,}."
 
+    equity_data = estimate_equity_grant(stage_or_text=job_title, seniority_tier=tier, role_title=job_title)
     return {
         "score": score,
         "rank": rank,
@@ -540,6 +764,9 @@ def evaluate_job_salary(
         "benchmark_title": benchmark_title,
         "assessment": assessment,
         "is_estimated": parsed_salary["is_estimated"],
+        "is_imputed": False,
+        "imputed_salary_badge": f"Disclosed: {parsed_salary['currency_symbol']}{int(parsed_salary['min_usd']) // 1000}k - {parsed_salary['currency_symbol']}{int(parsed_salary['max_usd']) // 1000}k",
+        "equity_breakdown": equity_data,
         "location_name": loc_name,
         "location_factor": loc_factor,
         "location_badge": loc_badge,
@@ -551,10 +778,14 @@ __all__ = [
     "MARKET_BENCHMARKS",
     "TIER_LABELS",
     "GEOGRAPHIC_SALARY_FACTORS",
+    "HIGH_DEMAND_STACK_KEYWORDS",
     "parse_numeric_salary",
     "parse_salary_range",
     "detect_role_domain",
     "detect_seniority_tier",
     "resolve_location_factor",
     "evaluate_job_salary",
+    "estimate_equity_grant",
+    "impute_market_salary",
+    "impute_market_salary_and_rewards",
 ]
