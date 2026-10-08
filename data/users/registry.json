@@ -1,6 +1,6 @@
 {
   "active_user_id": "usr_alex_mercer",
-  "created_at": "2026-10-06 18:51",
+  "created_at": "2026-10-08 13:59",
   "users": {
     "usr_alex_mercer": {
       "id": "usr_alex_mercer",
@@ -11,18 +11,7 @@
       "avatar_color": "#2563eb",
       "years_experience": "7 years",
       "target_role": "Senior AI Software Engineer",
-      "updated_at": "2026-10-06 18:51"
-    },
-    "usr_david_mendes": {
-      "id": "usr_david_mendes",
-      "name": "David Mendes",
-      "headline": "Staff AI Systems Architect",
-      "location": "London, UK / Remote",
-      "email": "david.mendes@example.com",
-      "avatar_color": "#0284c7",
-      "years_experience": "14 years",
-      "target_role": "Staff AI Systems Architect",
-      "updated_at": "2026-10-06 19:04"
+      "updated_at": "2026-10-08 13:59"
     },
     "usr_elena_rostova": {
       "id": "usr_elena_rostova",
@@ -33,7 +22,7 @@
       "avatar_color": "#7c3aed",
       "years_experience": "9 years",
       "target_role": "Lead Product Manager",
-      "updated_at": "2026-10-06 18:51"
+      "updated_at": "2026-10-08 13:59"
     }
   }
 }

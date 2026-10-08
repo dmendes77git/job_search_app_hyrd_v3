@@ -29,10 +29,27 @@ def show_cv_dialog(job: dict, profile: dict) -> None:
     active_lang = st.session_state[lang_state_key]
 
     if job_id not in st.session_state.customized_cvs:
-        with st.spinner(f"🤖 Hyrd Agent analyzing ATS requirements & tailoring CV for {job.get('company', 'Company')}..."):
-            cv_text = generate_customized_cv(
-                job, profile, api_key=api_key, preferred_model=pref_model, language=active_lang
-            )
+        with st.spinner(f"🤖 DocAgent analyzing ATS requirements & tailoring CV for {job.get('company', 'Company')}..."):
+            try:
+                from src.pipeline import run_doc_stage
+                from src.schemas import DocAgentInput, UserProfile, JobPosting, DocumentTypeEnum
+                doc_out = run_doc_stage(
+                    DocAgentInput(
+                        user_profile=UserProfile(**profile),
+                        job_posting=JobPosting(**job),
+                        document_types=[DocumentTypeEnum.CV],
+                        language=active_lang,
+                        model_override=pref_model,
+                    ),
+                    api_key=api_key,
+                )
+                cv_text = doc_out.cv_markdown or generate_customized_cv(
+                    job, profile, api_key=api_key, preferred_model=pref_model, language=active_lang
+                )
+            except Exception:
+                cv_text = generate_customized_cv(
+                    job, profile, api_key=api_key, preferred_model=pref_model, language=active_lang
+                )
             st.session_state.customized_cvs[job_id] = cv_text
             flush_session_to_user_workspace()
     else:
@@ -203,9 +220,26 @@ def show_cv_dialog(job: dict, profile: dict) -> None:
     with d_col3:
         if st.button("🔄 Regenerate", key=f"regen_cv_{job_id}", use_container_width=True):
             with st.spinner("Re-analyzing job requirements and regenerating ATS-optimized CV..."):
-                st.session_state.customized_cvs[job_id] = generate_customized_cv(
-                    job, profile, api_key=api_key, preferred_model=pref_model, language=active_lang
-                )
+                try:
+                    from src.pipeline import run_doc_stage
+                    from src.schemas import DocAgentInput, UserProfile, JobPosting, DocumentTypeEnum
+                    doc_out = run_doc_stage(
+                        DocAgentInput(
+                            user_profile=UserProfile(**profile),
+                            job_posting=JobPosting(**job),
+                            document_types=[DocumentTypeEnum.CV],
+                            language=active_lang,
+                            model_override=pref_model,
+                        ),
+                        api_key=api_key,
+                    )
+                    st.session_state.customized_cvs[job_id] = doc_out.cv_markdown or generate_customized_cv(
+                        job, profile, api_key=api_key, preferred_model=pref_model, language=active_lang
+                    )
+                except Exception:
+                    st.session_state.customized_cvs[job_id] = generate_customized_cv(
+                        job, profile, api_key=api_key, preferred_model=pref_model, language=active_lang
+                    )
                 flush_session_to_user_workspace()
                 st.toast("CV regenerated with ATS optimization!")
                 st.rerun()

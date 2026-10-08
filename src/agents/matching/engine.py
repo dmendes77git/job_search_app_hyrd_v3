@@ -9,7 +9,6 @@ import re
 from typing import Any, Dict, List, Tuple
 
 from src.utils.date_utils import parse_days_since_posted
-from src.utils.salary_evaluator import parse_numeric_salary
 
 from .extractors import (
     check_job_country_match,
@@ -25,205 +24,517 @@ from .taxonomy import (
 logger = logging.getLogger("Hyrd.Scoring.Engine")
 
 
-def calculate_semantic_fit(
+def extract_seniority_level(title_or_text: str, default_yoe: Optional[int] = None) -> Tuple[int, str]:
+    """Determine standardized seniority level index (1-6) and label.
+    1: Junior / Associate (0-2 yrs)
+    2: Mid-Level (2-5 yrs)
+    3: Senior (5-8 yrs)
+    4: Staff / Lead (8-12 yrs)
+    5: Principal / Architect (12-15 yrs)
+    6: Executive / Director (15+ yrs)
+    """
+    text = title_or_text.lower()
+    if any(k in text for k in ["director", "head of", "vp", "vice president", "chief", "cto", "c-level"]):
+        return 6, "Executive / Director"
+    if any(k in text for k in ["principal", "architect", "fellow", "distinguished"]):
+        return 5, "Principal / Architect"
+    if any(k in text for k in ["staff", "lead", "team lead", "tech lead"]):
+        return 4, "Staff / Lead"
+    if any(k in text for k in ["senior", "sr.", "sr ", "specialist"]):
+        return 3, "Senior"
+    if any(k in text for k in ["junior", "jr.", "jr ", "intern", "associate", "entry level", "graduate", "trainee"]):
+        return 1, "Junior / Associate"
+    
+    # Fallback to Years of Experience if available
+    if default_yoe is not None:
+        if default_yoe >= 15:
+            return 6, "Executive / Director"
+        elif default_yoe >= 12:
+            return 5, "Principal / Architect"
+        elif default_yoe >= 8:
+            return 4, "Staff / Lead"
+        elif default_yoe >= 5:
+            return 3, "Senior"
+        elif default_yoe >= 2:
+            return 2, "Mid-Level"
+        else:
+            return 1, "Junior / Associate"
+
+    return 2, "Mid-Level"
+
+
+def calculate_temporal_decay(days_posted: int) -> float:
+    """Calculate requisition age velocity decay multiplier Lambda in [0.15, 1.0].
+    Lambda(t) = 0.15 + 0.85 / (1.0 + (t / 12.0)^1.8)
+    """
+    if days_posted <= 2:
+        return 0.98
+    t = float(max(0, days_posted))
+    decay = 0.15 + (0.85 / (1.0 + ((t / 12.0) ** 1.8)))
+    return float(round(max(0.15, min(1.0, decay)), 3))
+
+
+def get_channel_advantage_multiplier(source: str, is_direct_ats: bool = False) -> Tuple[float, str]:
+    """Calculate competitive channel advantage multiplier Omega and classification."""
+    s_lower = (source or "").lower()
+    if is_direct_ats or any(ats in s_lower for ats in ["ashby", "greenhouse", "lever", "smartrecruiters", "workday"]):
+        return 1.15, "Direct Official ATS Feed"
+    elif any(sp in s_lower for sp in ["remoteok", "arbeitnow", "itjobs", "remotive", "landing", "net-empregos"]):
+        return 1.00, "Specialized Tech Aggregator"
+    elif any(agg in s_lower for agg in ["jobspy", "indeed", "ziprecruiter", "glassdoor", "google"]):
+        return 0.82, "High-Traffic Aggregator"
+    elif "linkedin" in s_lower:
+        return 0.70, "Saturated Job Portal"
+    return 1.00, "Standard Job Feed"
+
+
+def calculate_gatekeeper_audit(
     job: Dict[str, Any],
     profile: Dict[str, Any],
     target_countries: List[str],
-) -> Tuple[int, List[str], List[str], str]:
-    """
-    Profile-driven multi-dimensional semantic scoring engine:
-      1. Target Role & Synonym Alignment (0-45 points)
-      2. Core Anchors vs. Secondary Skills Overlap (0-35 points)
-      3. Freshness / Recency Boost (-3 to +4 points)
-      4. Experience & Leveling (YoE) Calibration (-5 to +3 points)
-      5. Salary Fit Factor (-4 to +3 points)
-      6. Work Mode & Country/Location Alignment (0-20 points)
-    Returns:
-      (fit_score, matched_skills, reasons, job_type_label)
-    Also populates job['matched_skills'] and job['missing_skills'].
-    """
-    target_role = (profile.get("headline") or profile.get("target_role") or "Professional").lower()
-    core_skills = profile.get("core_skills") or []
-    job_title = job.get("title", "").lower()
-    job_text = (
-        job.get("title", "")
+) -> Dict[str, Any]:
+    """Perform strict hard-barrier checks for work authorization, security clearance, and location radius."""
+    job_text = (job.get("title", "") + " " + job.get("description", "") + " " + job.get("full_description", "")).lower()
+    cand_text = (
+        profile.get("summary", "")
         + " "
-        + job.get("description", "")
+        + " ".join(profile.get("extracted_skills", []))
         + " "
-        + " ".join(job.get("tags", []))
+        + " ".join(profile.get("core_skills", []))
+        + " "
+        + " ".join(profile.get("certifications", []))
     ).lower()
+
+    work_auth_pass = True
+    geo_radius_pass = True
+    mandatory_cert_pass = True
+    reasons = []
+
+    # 1. Security Clearance Check
+    clearance_patterns = ["security clearance required", "active secret", "top secret", "ts/sci", "polygraph", "clearance required"]
+    if any(cp in job_text for cp in clearance_patterns):
+        if not any(cp in cand_text for cp in ["clearance", "secret", "ts/sci", "top secret"]):
+            work_auth_pass = False
+            reasons.append("Active Security Clearance required by employer.")
+
+    # 2. Strict US Citizenship / National Only Check
+    citizenship_patterns = ["us citizenship required", "must be a u.s. citizen", "u.s. citizens only", "us citizens only"]
+    if any(cp in job_text for cp in citizenship_patterns):
+        cand_loc = (profile.get("location_preference") or profile.get("location") or "").lower()
+        if not any(us_ind in cand_loc for us_ind in ["united states", "usa", "u.s.", "us"]):
+            work_auth_pass = False
+            reasons.append("Strict US Citizenship required (candidate outside target region).")
+
+    # 3. Visa Sponsorship Prohibition Check
+    no_visa_patterns = ["no visa sponsorship", "unable to sponsor", "cannot sponsor", "not offer visa sponsorship", "sponsorship not available"]
+    if any(nv in job_text for nv in no_visa_patterns):
+        country_match, _ = check_job_country_match(job.get("location", ""), target_countries)
+        if not country_match and target_countries and "remote" not in [tc.lower() for tc in target_countries]:
+            work_auth_pass = False
+            reasons.append("Employer does not provide visa sponsorship.")
+
+    # 4. Physical Geographic Radius for On-site / Hybrid roles
+    mode_label, is_remote, is_hybrid, is_onsite = determine_work_mode(job)
+    user_work_mode = (profile.get("work_mode") or "Remote Only").lower()
+
+    if (is_onsite or is_hybrid) and "remote only" in user_work_mode:
+        geo_radius_pass = False
+        reasons.append(f"Role requires physical presence ({mode_label}) but candidate prefers Remote Only.")
+    elif is_onsite or is_hybrid:
+        country_match, _ = check_job_country_match(job.get("location", ""), target_countries)
+        clean_tc = [tc.lower() for tc in target_countries]
+        if not country_match and target_countries and clean_tc != ["remote"]:
+            geo_radius_pass = False
+            reasons.append(f"Physical on-site/hybrid role in {job.get('location', 'unspecified location')} outside candidate target countries.")
+
+    # Compute overall gate factor
+    if not work_auth_pass:
+        overall_gate = 0.0
+    elif not geo_radius_pass:
+        overall_gate = 0.0
+    elif not mandatory_cert_pass:
+        overall_gate = 0.0
+    else:
+        overall_gate = 1.0
+
+    return {
+        "work_auth_pass": work_auth_pass,
+        "geo_radius_pass": geo_radius_pass,
+        "mandatory_cert_pass": mandatory_cert_pass,
+        "overall_gate_factor": overall_gate,
+        "disqualification_reason": "; ".join(reasons) if reasons else None,
+    }
+
+
+def calculate_quality_match(
+    job: Dict[str, Any],
+    profile: Dict[str, Any],
+    target_countries: List[str],
+) -> Dict[str, Any]:
+    """Execute redesigned Dual-Engine Quality Match algorithm from 03_MATCH_LOGIC_BLUEPRINT.md.
+    Decouples Profile Fit Score (0-100) from Likelihood of Success (0-100%).
+    """
+    import math
+
+    target_role = (profile.get("headline") or profile.get("target_role") or "Professional").lower()
+    core_skills = profile.get("core_skills") or profile.get("extracted_skills") or []
+    job_title = job.get("title", "").lower()
+    job_desc = job.get("description", "") or job.get("full_description", "")
+    job_tags = job.get("tags", [])
+    job_text = f"{job_title} {job_desc} {' '.join(job_tags)}".lower()
 
     mode_label, is_remote, is_hybrid, is_onsite = determine_work_mode(job)
     user_work_mode = (profile.get("work_mode") or "Remote Only").lower()
 
-    score = 65.0  # Base calibration score
+    # ---------------------------------------------------------
+    # 1. DEEP SKILL ALIGNMENT (S_skill: 0-100) - Weight 0.40
+    # ---------------------------------------------------------
+    # Segment requisition requirements into Must-Have vs Secondary
+    must_have_skills: List[str] = []
+    secondary_skills: List[str] = []
 
-    # 1. Title & Role Token Alignment
-    role_tokens = [t for t in re.split(r"[\s/,-]+", target_role) if len(t) > 2]
-    selected_roles = profile.get("selected_roles") or []
-    for r in selected_roles:
-        role_tokens.extend([t for t in re.split(r"[\s/,-]+", r.lower()) if len(t) > 2])
-
-    # Expand synonyms for the target role
-    synonym_titles = expand_role_synonyms(target_role)
-    for syn in synonym_titles:
-        role_tokens.extend([t for t in re.split(r"[\s/,-]+", syn.lower()) if len(t) > 2])
-
-    role_tokens = list(dict.fromkeys(role_tokens))
-
-    matched_role_tokens = [t for t in role_tokens if t in job_title]
-    if matched_role_tokens:
-        score += min(24.0, len(matched_role_tokens) * 8.0)
-    elif any(t in job_text for t in role_tokens):
-        score += 8.0
-
-    # Common seniority & responsibility token alignment
-    for st in _SENIORITY_TOKENS:
-        if st in target_role and st in job_title:
-            score += 3.0
-
-    # 2. Must-Have Core Anchors vs. Secondary Skills Overlap
-    core_anchors = []
-    secondary_skills = []
-    role_token_set = set(role_tokens)
     for idx, skill in enumerate(core_skills):
-        skill_term = skill.split("/")[0].split("(")[0].strip().lower()
-        if idx < 3 or any(rt in skill_term for rt in role_token_set):
-            core_anchors.append(skill)
+        if idx < 4:
+            must_have_skills.append(skill)
         else:
             secondary_skills.append(skill)
 
     matched_skills = []
-    matched_core_anchors = []
+    matched_must_have = []
     matched_secondary = []
+    missing_must_have = []
+    capability_matches = []
 
-    for skill in core_anchors:
-        base_term = skill.split("/")[0].split("(")[0].strip().lower()
-        if len(base_term) > 2 and (base_term in job_text or base_term in job_title):
-            matched_skills.append(skill)
-            matched_core_anchors.append(skill)
-            score += 6.0  # Core anchor bonus
+    for s in must_have_skills:
+        clean_s = s.split("/")[0].split("(")[0].strip().lower()
+        if len(clean_s) >= 2 and (clean_s in job_text or clean_s in job_title):
+            matched_skills.append(s)
+            matched_must_have.append(s)
+            capability_matches.append({
+                "skill_name": s,
+                "is_must_have": True,
+                "matched": True,
+                "mastery_score": 1.0,
+            })
+        else:
+            missing_must_have.append(s)
+            capability_matches.append({
+                "skill_name": s,
+                "is_must_have": True,
+                "matched": False,
+                "mastery_score": 0.0,
+            })
 
-    for skill in secondary_skills:
-        base_term = skill.split("/")[0].split("(")[0].strip().lower()
-        if len(base_term) > 2 and (base_term in job_text or base_term in job_title):
-            matched_skills.append(skill)
-            matched_secondary.append(skill)
-            score += 2.0  # Secondary skill bonus
+    for s in secondary_skills:
+        clean_s = s.split("/")[0].split("(")[0].strip().lower()
+        if len(clean_s) >= 2 and (clean_s in job_text or clean_s in job_title):
+            matched_skills.append(s)
+            matched_secondary.append(s)
+            capability_matches.append({
+                "skill_name": s,
+                "is_must_have": False,
+                "matched": True,
+                "mastery_score": 0.85,
+            })
+        else:
+            capability_matches.append({
+                "skill_name": s,
+                "is_must_have": False,
+                "matched": False,
+                "mastery_score": 0.0,
+            })
 
-    # Missing Core Anchor penalty
-    if core_skills and not matched_core_anchors and not matched_skills:
-        matched_skills = core_skills[:2]
-        score -= 4.0
+    must_pct = (len(matched_must_have) / len(must_have_skills)) if must_have_skills else 1.0
+    sec_pct = (len(matched_secondary) / len(secondary_skills)) if secondary_skills else 1.0
+    raw_skill_score = 100.0 * (0.75 * must_pct + 0.25 * sec_pct)
 
-    # Tech Stack & Missing Skills Extraction
+    # Exponential Critical Gap Penalty
+    gamma_gaps = (1.0 - 0.22) ** len(missing_must_have)
+    s_skill = min(100.0, max(0.0, raw_skill_score * gamma_gaps))
+
+    # Missing tech in job
     extracted_job_tech = extract_tech_skills(job_text)
     cand_skill_lower = {s.lower() for s in core_skills}
     missing_tech = [
         t for t in extracted_job_tech
         if not any(t.lower() in cs or cs in t.lower() for cs in cand_skill_lower)
     ]
-    job["matched_skills"] = matched_skills
-    job["missing_skills"] = missing_tech[:4]
 
-    # 3. Recency & Freshness Boost
-    days_count, days_label = parse_days_since_posted(job.get("posted", "Recent"), job_id=job.get("id", ""))
-    job["days_since_posted"] = days_count
-    job["days_since_posted_label"] = days_label
-    freshness_reason = None
-    if days_count <= 3:
-        score += 4.0
-        freshness_reason = f"🔥 Fresh requisition: Published {days_count} {'day' if days_count == 1 else 'days'} ago with active hiring momentum."
-    elif days_count <= 7:
-        score += 2.0
-        freshness_reason = "Active requisition: Published within the last 7 days."
-    elif days_count > 21:
-        score -= 3.0
-        freshness_reason = "Aging requisition (>3 weeks): Likely in advanced interview stages."
+    # ---------------------------------------------------------
+    # 2. ROLE & DOMAIN CONGRUENCE (S_role: 0-100) - Weight 0.25
+    # ---------------------------------------------------------
+    cand_role_tokens = [t for t in re.split(r"[\s/,-]+", target_role) if len(t) > 2]
+    synonym_titles = expand_role_synonyms(target_role)
+    all_role_tokens = list(dict.fromkeys(cand_role_tokens + [t for syn in synonym_titles for t in re.split(r"[\s/,-]+", syn.lower()) if len(t) > 2]))
 
-    # 4. Experience & Leveling (YoE) Calibration
-    req_yoe = extract_required_years_experience(job_text)
+    title_matches = [t for t in all_role_tokens if t in job_title]
+    if target_role in job_title or any(syn.lower() in job_title for syn in synonym_titles):
+        sim_title = 100.0
+    elif title_matches:
+        sim_title = min(95.0, 50.0 + len(title_matches) * 15.0)
+    elif any(t in job_text for t in all_role_tokens):
+        sim_title = 60.0
+    else:
+        sim_title = 20.0
+
+    # Domain keyword alignment
+    domains = [
+        ("ai", ["ai", "agent", "agentic", "llm", "machine learning", "ml", "nlp", "deep learning"]),
+        ("software", ["software", "engineer", "developer", "backend", "frontend", "full stack", "fullstack", "platform", "systems", "architect"]),
+        ("data", ["data", "analytics", "database", "sql", "pipeline", "etl", "bi"]),
+        ("cloud", ["cloud", "devops", "sre", "infrastructure", "kubernetes", "aws", "gcp"]),
+        ("product", ["product", "product manager", "strategy", "roadmap", "agile"]),
+    ]
+    sim_domain = 40.0
+    for _, kws in domains:
+        cand_in = any(k in target_role for k in kws)
+        job_in = any(k in job_title or k in job_text for k in kws)
+        if cand_in and job_in:
+            sim_domain = 100.0
+            break
+        elif cand_in and not job_in:
+            sim_domain = 25.0
+
+    s_role = 0.60 * sim_title + 0.40 * sim_domain
+
+    # ---------------------------------------------------------
+    # 3. SENIORITY & LEVELING CALIBRATION (S_level: 0-100) - Weight 0.20
+    # ---------------------------------------------------------
     cand_yoe_str = str(profile.get("years_of_experience") or profile.get("experience_level") or "")
     cand_yoe_m = re.search(r"(\d+)", cand_yoe_str)
-    cand_yoe = int(cand_yoe_m.group(1)) if cand_yoe_m else None
-    yoe_reason = None
+    cand_yoe = int(cand_yoe_m.group(1)) if cand_yoe_m else 5
+    cand_level_idx, cand_level_name = extract_seniority_level(target_role, default_yoe=cand_yoe)
 
+    req_yoe = extract_required_years_experience(job_text)
+    entry_or_jr = any(k in job_text for k in ["entry level", "entry-level", "junior", "intern", "trainee", "associate"])
+    if entry_or_jr or (req_yoe is not None and req_yoe <= 2):
+        job_level_idx, job_level_name = 1, "Junior / Associate"
+    else:
+        job_level_idx, job_level_name = extract_seniority_level(job_title, default_yoe=req_yoe)
+
+    delta_l = cand_level_idx - job_level_idx
+    if delta_l == 0:
+        s_level = 100.0
+        level_assessment = f"Exact leveling alignment: Role matches your {cand_level_name} background."
+    elif delta_l == 1:
+        s_level = 90.0
+        level_assessment = f"Comfortable leveling: Your {cand_level_name} expertise slightly exceeds role requirement."
+    elif delta_l == -1:
+        s_level = 75.0
+        level_assessment = f"Growth stretch role: Role targets {job_level_name} (you are {cand_level_name})."
+    elif delta_l >= 2:
+        s_level = max(10.0, 100.0 - 40.0 * (delta_l - 1))
+        level_assessment = f"Overqualification advisory: {job_level_name} role may pose compensation and engagement limits for a {cand_level_name}."
+    else:  # delta_l <= -2
+        s_level = max(0.0, 100.0 - 50.0 * abs(delta_l))
+        level_assessment = f"Underqualification warning: Requisition targets {job_level_name} requiring higher experience tenure."
+
+    yoe_reason = None
     if req_yoe is not None and cand_yoe is not None:
-        if cand_yoe >= req_yoe:
-            score += 3.0
+        if cand_yoe >= req_yoe and req_yoe >= 3:
             yoe_reason = f"Leveling match: Your {cand_yoe}+ years experience fulfills the required {req_yoe}+ years."
         elif 0 < (req_yoe - cand_yoe) <= 2:
-            score += 1.5
             yoe_reason = f"High-growth stretch opportunity: Requisition asks for {req_yoe} yrs (you offer {cand_yoe}+ yrs)."
-        elif cand_yoe >= 8 and req_yoe <= 2:
-            score -= 10.0
+        elif cand_yoe >= 6 and req_yoe <= 2:
             yoe_reason = f"Scope advisory: Role specifies {req_yoe} yrs, which is below your senior background."
+    elif (cand_yoe and cand_yoe >= 6) and entry_or_jr:
+        yoe_reason = "Leveling advisory: Entry/junior level role does not match your senior background."
 
-    # Seniority mismatch check: penalize entry/junior roles for senior candidates
-    cand_is_senior = (cand_yoe is not None and cand_yoe >= 6) or any(
-        st in target_role for st in ["senior", "lead", "staff", "principal", "director", "head"]
-    )
-    job_is_junior = any(
-        jt in job_title or jt in job_text
-        for jt in ["entry level", "junior", "intern", "associate"]
-    )
-    if cand_is_senior and job_is_junior:
-        score -= 8.0
-        if not yoe_reason:
-            yoe_reason = "Leveling advisory: Entry/junior level role does not match your senior background."
-
-    # 5. Salary Fit Factor
-    desired_sal_raw = (
-        profile.get("preferred_min_salary")
-        or profile.get("desired_salary")
-        or profile.get("min_salary")
-        or ""
-    )
+    # ---------------------------------------------------------
+    # 4. PREFERENCES & COMPENSATION (S_pref: 0-100) - Weight 0.15
+    # ---------------------------------------------------------
+    from src.utils.salary_evaluator import parse_numeric_salary
+    desired_sal_raw = (profile.get("preferred_min_salary") or profile.get("min_salary") or "")
     desired_sal = parse_numeric_salary(str(desired_sal_raw))
     job_sal = parse_numeric_salary(str(job.get("salary", "")))
     salary_reason = None
-
     if desired_sal and job_sal:
-        if job_sal >= desired_sal:
-            score += 3.0
+        r_sal = job_sal / desired_sal
+        if r_sal >= 1.05:
+            score_sal = 100.0
             salary_reason = "Compensation alignment: Offered salary meets or exceeds your minimum target."
-        elif job_sal < desired_sal * 0.75 and desired_sal > 30000:
-            score -= 4.0
+        elif r_sal >= 0.95:
+            score_sal = 85.0
+            salary_reason = "Compensation alignment: Offered salary meets or exceeds your minimum target."
+        elif r_sal >= 0.80:
+            score_sal = 60.0
             salary_reason = "Compensation advisory: Posted compensation is below your target minimum threshold."
-
-    # 6. Work Mode & Location Alignment
-    country_match, matched_country = check_job_country_match(job.get("location", ""), target_countries)
-    reasons = []
+        else:
+            score_sal = 20.0
+            salary_reason = "Compensation advisory: Posted compensation is below your target minimum threshold."
+    else:
+        score_sal = 80.0
 
     if is_remote and ("remote" in user_work_mode or "no preference" in user_work_mode):
-        score += 6.0
-        reasons.append("100% Remote position matching your work mode preference.")
+        score_mode = 100.0
     elif is_hybrid and ("hybrid" in user_work_mode or "no preference" in user_work_mode or "open" in user_work_mode):
-        score += 7.0
-        loc_display = matched_country or job.get("location", "Target Region")
-        reasons.append(f"Hybrid role in your target region: {loc_display}.")
+        score_mode = 100.0
     elif is_onsite and ("on-site" in user_work_mode or "no preference" in user_work_mode or "open" in user_work_mode):
-        score += 6.0
-        loc_display = matched_country or job.get("location", "Target Region")
-        reasons.append(f"On-site role located in {loc_display}.")
+        score_mode = 100.0
+    elif is_remote:
+        score_mode = 90.0
+    else:
+        score_mode = 30.0
 
-    if matched_core_anchors:
-        reasons.append(f"Core anchor alignment: Strong match on {', '.join(matched_core_anchors[:3])}.")
-    elif len(matched_skills) >= 2:
-        reasons.append(f"Direct alignment with candidate skills: {', '.join(matched_skills[:3])}.")
+    is_target_co = job.get("is_target_company", False)
+    score_co = 100.0 if is_target_co else 50.0
 
+    s_pref = 0.50 * score_sal + 0.35 * score_mode + 0.15 * score_co
+
+    # ---------------------------------------------------------
+    # FINAL PROFILE FIT SCORE (S_fit: 0 - 100)
+    # ---------------------------------------------------------
+    profile_fit_score = float(round(0.40 * s_skill + 0.25 * s_role + 0.20 * s_level + 0.15 * s_pref, 1))
+
+    # Requisition Age & Velocity Calibration
+    days_posted, days_label = parse_days_since_posted(job.get("posted", "Recent"), job_id=job.get("id", ""))
+    lambda_decay = calculate_temporal_decay(days_posted)
+    freshness_reason = None
+    freshness_delta = 0.0
+    if days_posted <= 3:
+        freshness_delta = 3.0
+        freshness_reason = f"⚡ Fresh requisition: Published {days_posted} days ago with active hiring momentum (Hot opening)."
+    elif days_posted > 21:
+        freshness_delta = -3.0
+        freshness_reason = f"Aging requisition (>3 weeks): Likely in advanced interview stages ({days_posted}d ago)."
+
+    profile_fit_score = float(round(max(0.0, min(100.0, profile_fit_score + freshness_delta)), 1))
+
+    # ---------------------------------------------------------
+    # 5. LIKELIHOOD OF SUCCESS (P_success: 0 - 100%)
+    # ---------------------------------------------------------
+    # Base probability sigmoid
+    p_base = 0.88 / (1.0 + math.exp(-0.09 * (profile_fit_score - 72.0)))
+
+    # Hard Gatekeeper Audit
+    gatekeeper = calculate_gatekeeper_audit(job, profile, target_countries)
+    phi_gate = gatekeeper["overall_gate_factor"]
+
+    # Ingestion Channel Multiplier
+    omega_channel, channel_type = get_channel_advantage_multiplier(
+        job.get("source", "Aggregator"),
+        is_direct_ats=job.get("is_direct_ats", False)
+    )
+
+    # ATS Keyword Density Friction
+    total_must = len(must_have_skills) if must_have_skills else 1
+    matched_must = len(matched_must_have)
+    psi_friction = max(0.50, min(1.0, 0.60 + 0.40 * (matched_must / total_must)))
+
+    # Compute raw callback likelihood
+    raw_p_success = p_base * phi_gate * lambda_decay * omega_channel * psi_friction * 100.0
+    interview_likelihood_pct = float(round(max(0.0, min(95.0, raw_p_success)), 1))
+
+    # ---------------------------------------------------------
+    # 6. STRATEGIC QUADRANT & ACTIONABLE DIRECTIVES
+    # ---------------------------------------------------------
+    if profile_fit_score >= 85.0 and interview_likelihood_pct >= 60.0:
+        strategic_quadrant = "QI"
+        recommended_action = "Priority Fast-Track: High capability match with peak hiring velocity. Apply immediately via direct ATS with tailored CV."
+    elif profile_fit_score >= 80.0 and interview_likelihood_pct < 40.0:
+        strategic_quadrant = "QII"
+        recommended_action = "High Fit / Stale Market: High technical capability but requisition is aging or saturated. Do NOT cold apply; execute LinkedIn InMail outreach for referral."
+    elif profile_fit_score >= 65.0 and interview_likelihood_pct >= 50.0:
+        strategic_quadrant = "QIII"
+        recommended_action = "High Viability Stretch: Strong hiring velocity and candidate pipeline. Apply with bridge skill narrative in cover letter."
+    else:
+        strategic_quadrant = "QIV"
+        if phi_gate == 0.0:
+            recommended_action = f"Disqualified: {gatekeeper.get('disqualification_reason') or 'Hard requirement barrier failed.'}"
+        else:
+            recommended_action = "Low Viability / Misaligned: Significant capability gap or leveling mismatch. Archive or skip to preserve application quota."
+
+    # Rationale Statements
+    reasons = []
+    if is_target_co:
+        reasons.append(f"⭐ Target dream employer specified in your profile ({job.get('company', 'Company')}).")
+    if job.get("is_direct_ats"):
+        reasons.append("⚡ Direct ATS Official Submission: Unmediated employer requisition with maximum callback odds.")
+    if matched_must_have:
+        reasons.append(f"Core capability match: Verified proficiency in {', '.join(matched_must_have[:3])}.")
     if freshness_reason:
         reasons.append(freshness_reason)
     if yoe_reason:
         reasons.append(yoe_reason)
+    elif level_assessment:
+        reasons.append(level_assessment)
     if salary_reason:
         reasons.append(salary_reason)
+    if gatekeeper.get("disqualification_reason"):
+        reasons.append(f"🛑 Barrier Alert: {gatekeeper['disqualification_reason']}")
 
-    if any(t in job_title for t in ["senior", "lead", "manager", "director", "head", "staff"]):
-        reasons.append(f"Seniority level aligns with your career trajectory in {target_role.title()}.")
+    return {
+        "profile_fit_score": profile_fit_score,
+        "interview_likelihood_pct": interview_likelihood_pct,
+        "strategic_quadrant": strategic_quadrant,
+        "matched_skills": matched_skills,
+        "missing_skills": missing_tech[:5],
+        "reasons": reasons[:6],
+        "mode_label": mode_label,
+        "recommended_action": recommended_action,
+        "dimension_scores": {
+            "skill": round(s_skill, 1),
+            "role": round(s_role, 1),
+            "level": round(s_level, 1),
+            "pref": round(s_pref, 1),
+            "semantic_fit": profile_fit_score,
+            "compensation": round(score_sal, 1),
+        },
+        "capability_matches": capability_matches,
+        "leveling_analysis": {
+            "candidate_level": cand_level_name,
+            "role_level": job_level_name,
+            "level_delta": delta_l,
+            "score": round(s_level, 1),
+            "assessment": level_assessment,
+        },
+        "gatekeeper_audit": gatekeeper,
+        "viability_metrics": {
+            "days_since_posted": days_posted,
+            "decay_multiplier": lambda_decay,
+            "channel_type": channel_type,
+            "channel_multiplier": omega_channel,
+            "ats_keyword_density_pct": round(psi_friction * 100.0, 1),
+        },
+    }
 
-    final_score = int(min(98, max(72, round(score))))
-    return final_score, matched_skills, reasons[:4], mode_label
+
+def calculate_semantic_fit(
+    job: Dict[str, Any],
+    profile: Dict[str, Any],
+    target_countries: List[str],
+) -> Tuple[int, List[str], List[str], str]:
+    """Profile-driven multi-dimensional semantic scoring engine (Decoupled Dual-Engine).
+    Returns (fit_score, matched_skills, reasons, job_type_label).
+    Also populates job with decoupled metrics and audit models.
+    """
+    res = calculate_quality_match(job, profile, target_countries)
+    fit_score = int(round(res["profile_fit_score"]))
+
+    job["profile_fit_score"] = res["profile_fit_score"]
+    job["interview_likelihood_pct"] = res["interview_likelihood_pct"]
+    job["strategic_quadrant"] = res["strategic_quadrant"]
+    job["matched_skills"] = res["matched_skills"]
+    job["missing_skills"] = res["missing_skills"]
+    job["key_reasons"] = res["reasons"]
+    job["job_type"] = res["mode_label"]
+    job["dimension_scores"] = res["dimension_scores"]
+    job["capability_matches"] = res.get("capability_matches", [])
+    job["gatekeeper_audit"] = res["gatekeeper_audit"]
+    job["leveling_analysis"] = res["leveling_analysis"]
+    job["viability_metrics"] = res["viability_metrics"]
+    job["recommended_action"] = res["recommended_action"]
+    job["fit_score"] = fit_score
+
+    # Calibrate UI badge color
+    if fit_score >= 88:
+        job["badge_color"] = "#10b981"  # Emerald green
+    elif fit_score >= 75:
+        job["badge_color"] = "#2563eb"  # Royal blue
+    else:
+        job["badge_color"] = "#f59e0b"  # Amber warning
+
+    return fit_score, res["matched_skills"], res["reasons"][:6], res["mode_label"]
 
 
 def evaluate_role_match(

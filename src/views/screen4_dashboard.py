@@ -112,25 +112,30 @@ def render_screen4() -> None:
 
     # Filters and Controls
     with st.expander("🔍 Filter & Search Opportunities", expanded=False):
-        fcol1, fcol2, fcol3, fcol4, fcol5 = st.columns(5)
+        fcol1, fcol2, fcol3, fcol4, fcol5, fcol6 = st.columns(6)
         with fcol1:
             search_query = st.text_input(
-                "Filter by Keyword / Company / Domain",
-                placeholder="e.g. Finance, Marketing, Python, Toast, Berlin...",
+                "Keyword / Company",
+                placeholder="e.g. Python, Toast...",
             )
         with fcol2:
-            min_score = st.slider("Minimum Match Score", min_value=70, max_value=98, value=75, step=1)
+            min_score = st.slider("Min Fit Score", min_value=30, max_value=98, value=50, step=1)
         with fcol3:
+            quadrant_filter = st.selectbox(
+                "Strategic Quadrant",
+                ["All Quadrants", "QI: Priority Fast-Track", "QII: Referral Outreach", "QIII: Stretch Role", "QIV: Low Viability"],
+            )
+        with fcol4:
             loc_filter = st.selectbox(
                 "Work Mode Filter",
                 ["All Work Modes", "Remote Only", "Hybrid Only", "On-site Only"],
             )
-        with fcol4:
+        with fcol5:
             salary_filter = st.selectbox(
                 "Salary Rank Filter",
                 ["All Salary Ranks", "Within Market Standard & Above", "Above Market Only"],
             )
-        with fcol5:
+        with fcol6:
             source_type_filter = st.selectbox(
                 "Source Channel",
                 ["All Channels", "Direct ATS Only", "Portuguese Portals Only", "Remote Hubs Only"],
@@ -147,13 +152,18 @@ def render_screen4() -> None:
     )
 
     for job in jobs_source:
-        if job["fit_score"] < min_score:
+        fit = job.get("profile_fit_score", job.get("fit_score", 0))
+        if fit < min_score:
             continue
+        if quadrant_filter != "All Quadrants":
+            q_prefix = quadrant_filter.split(":")[0].strip()
+            if job.get("strategic_quadrant") != q_prefix:
+                continue
         if search_query:
             query_lower = search_query.lower()
-            in_title = query_lower in job["title"].lower()
-            in_company = query_lower in job["company"].lower()
-            in_skills = any(query_lower in s.lower() for s in job["matched_skills"])
+            in_title = query_lower in (job.get("title") or "").lower()
+            in_company = query_lower in (job.get("company") or job.get("company_name") or "").lower()
+            in_skills = any(query_lower in str(s).lower() for s in job.get("matched_skills", []))
             if not (in_title or in_company or in_skills):
                 continue
 
@@ -180,16 +190,18 @@ def render_screen4() -> None:
         ):
             continue
 
-        # Evaluate proposed salary against candidate profile, preferences, and target location market benchmarks
-        salary_eval = evaluate_job_salary(
-            job_salary_str=job.get("salary", ""),
-            job_title=job.get("title", ""),
-            profile=profile,
-            desired_min_salary_str=cand_min_pref,
-            target_location=target_loc,
-            job_location=job.get("location", ""),
-        )
-        job["salary_eval"] = salary_eval
+        # Evaluate proposed salary against candidate profile, preferences, and target location market benchmarks (with caching)
+        salary_eval = job.get("salary_eval")
+        if not salary_eval:
+            salary_eval = evaluate_job_salary(
+                job_salary_str=job.get("salary", ""),
+                job_title=job.get("title", ""),
+                profile=profile,
+                desired_min_salary_str=cand_min_pref,
+                target_location=target_loc,
+                job_location=job.get("location", ""),
+            )
+            job["salary_eval"] = salary_eval
 
         if salary_filter == "Above Market Only" and salary_eval["rank"] != "Above Market":
             continue
@@ -201,16 +213,93 @@ def render_screen4() -> None:
 
         filtered_jobs.append(job)
 
-    st.markdown(f"**Showing {len(filtered_jobs)} of {len(jobs_source)} matched positions**")
+    # Filter state tracking to reset page to 1 when filters change
+    current_filter_sig = (
+        search_query,
+        min_score,
+        quadrant_filter,
+        loc_filter,
+        salary_filter,
+        source_type_filter,
+    )
+    if st.session_state.get("_dashboard_filter_sig") != current_filter_sig:
+        st.session_state._dashboard_filter_sig = current_filter_sig
+        st.session_state.dashboard_page = 1
 
-    # Render Job Cards
-    for job in filtered_jobs:
+    total_matched = len(filtered_jobs)
+
+    # Page size selector & status header
+    p_hdr1, p_hdr2, p_hdr3, p_hdr4 = st.columns([2.2, 0.9, 0.9, 1.0], gap="small")
+
+    with p_hdr4:
+        page_size_options = [10, 15, 25, 50]
+        curr_page_size = st.session_state.get("dashboard_page_size", 15)
+        ps_idx = page_size_options.index(curr_page_size) if curr_page_size in page_size_options else 1
+        page_size = st.selectbox("Per page", options=page_size_options, index=ps_idx, key="dash_page_size_select")
+        st.session_state.dashboard_page_size = page_size
+
+    total_pages = max(1, (total_matched + page_size - 1) // page_size)
+    curr_page = max(1, min(st.session_state.get("dashboard_page", 1), total_pages))
+    st.session_state.dashboard_page = curr_page
+
+    start_idx = (curr_page - 1) * page_size
+    end_idx = min(start_idx + page_size, total_matched)
+    paged_jobs = filtered_jobs[start_idx:end_idx]
+
+    with p_hdr1:
+        if total_matched > 0:
+            st.markdown(
+                f"<div style='font-size: 0.95rem; font-weight: 600; color: #1e293b; padding-top: 0.4rem;'>"
+                f"Showing {start_idx + 1}–{end_idx} of {total_matched} positions "
+                f"<span style='color: #64748b; font-weight: 400;'>• Page {curr_page} of {total_pages}</span></div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"<div style='font-size: 0.95rem; font-weight: 600; color: #e11d48; padding-top: 0.4rem;'>"
+                f"No positions matching current filter criteria ({total_matched}/{len(jobs_source)} matched).</div>",
+                unsafe_allow_html=True,
+            )
+
+    with p_hdr2:
+        if st.button("⬅️ Prev Page", key="dash_prev_top", disabled=(curr_page <= 1), use_container_width=True):
+            st.session_state.dashboard_page = max(1, curr_page - 1)
+            st.rerun()
+
+    with p_hdr3:
+        if st.button("Next Page ➡️", key="dash_next_top", disabled=(curr_page >= total_pages), use_container_width=True):
+            st.session_state.dashboard_page = min(total_pages, curr_page + 1)
+            st.rerun()
+
+    st.markdown("<div style='height: 0.35rem;'></div>", unsafe_allow_html=True)
+
+    # Render Job Cards for current page only
+    for job in paged_jobs:
         render_job_card(
             job=job,
             profile=profile,
             cand_min_pref=cand_min_pref,
             target_loc=target_loc,
         )
+
+    # Bottom Pagination Bar (if multiple pages exist)
+    if total_pages > 1:
+        st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
+        bot_p1, bot_p2, bot_p3 = st.columns([2, 1, 1], gap="small")
+        with bot_p1:
+            st.markdown(
+                f"<div style='font-size: 0.85rem; color: #64748b; padding-top: 0.5rem;'>"
+                f"Page <strong>{curr_page}</strong> of <strong>{total_pages}</strong> ({total_matched} opportunities)</div>",
+                unsafe_allow_html=True,
+            )
+        with bot_p2:
+            if st.button("⬅️ Previous Page", key="dash_prev_bot", disabled=(curr_page <= 1), use_container_width=True):
+                st.session_state.dashboard_page = max(1, curr_page - 1)
+                st.rerun()
+        with bot_p3:
+            if st.button("Next Page ➡️", key="dash_next_bot", disabled=(curr_page >= total_pages), use_container_width=True):
+                st.session_state.dashboard_page = min(total_pages, curr_page + 1)
+                st.rerun()
 
     st.markdown("---")
 
@@ -231,7 +320,7 @@ def render_screen4() -> None:
     with b_col4:
         st.download_button(
             label="📥 Export Matches (JSON)",
-            data=json.dumps(filtered_jobs, indent=2),
+            data=json.dumps(filtered_jobs, indent=2, default=str),
             file_name="hyrd_job_matches.json",
             mime="application/json",
             use_container_width=True,

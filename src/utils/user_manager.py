@@ -4,14 +4,16 @@ Provides persistent storage, profile management, and dedicated workspace isolati
 for multiple candidate accounts across the application.
 """
 
+from datetime import date, datetime
+from enum import Enum
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import shutil
-from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import uuid
 import streamlit as st
 
 
@@ -32,6 +34,37 @@ AVATAR_COLORS = {
 }
 
 AVATAR_PALETTE = list(AVATAR_COLORS.keys())
+
+
+def make_json_serializable(obj: Any) -> Any:
+    """
+    Recursively convert datetime, date, set, UUID, Enum, Path, and custom models
+    to clean JSON-serializable primitives.
+    """
+    if obj is None or isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if isinstance(obj, uuid.UUID):
+        return str(obj)
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, (set, list, tuple)):
+        return [make_json_serializable(item) for item in obj]
+    if isinstance(obj, dict):
+        return {str(k): make_json_serializable(v) for k, v in obj.items()}
+    if hasattr(obj, "model_dump"):
+        try:
+            return make_json_serializable(obj.model_dump(mode="json"))
+        except Exception:
+            return make_json_serializable(obj.model_dump())
+    if hasattr(obj, "to_dict"):
+        return make_json_serializable(obj.to_dict())
+    if hasattr(obj, "dict"):
+        return make_json_serializable(obj.dict())
+    return str(obj)
 
 
 def _ensure_dir(path: Path) -> Path:
@@ -55,8 +88,9 @@ def get_registry() -> Dict[str, Any]:
 def save_registry(registry_data: Dict[str, Any]) -> None:
     """Save the global user registry index."""
     _ensure_dir(BASE_DATA_DIR)
+    clean_reg = make_json_serializable(registry_data)
     with open(REGISTRY_FILE, "w", encoding="utf-8") as f:
-        json.dump(registry_data, f, indent=2, ensure_ascii=False)
+        json.dump(clean_reg, f, indent=2, ensure_ascii=False, default=str)
 
 
 def get_all_users() -> List[Dict[str, Any]]:
@@ -108,8 +142,9 @@ def save_user_profile(user_id: str, profile_data: Dict[str, Any]) -> None:
     """Save full profile data and update global registry summary."""
     udir = get_user_dir(user_id, create=True)
     p_path = udir / "profile.json"
+    clean_profile = make_json_serializable(profile_data)
     with open(p_path, "w", encoding="utf-8") as f:
-        json.dump(profile_data, f, indent=2, ensure_ascii=False)
+        json.dump(clean_profile, f, indent=2, ensure_ascii=False, default=str)
 
     # Update summary in registry
     reg = get_registry()
@@ -162,15 +197,10 @@ def save_user_workspace(user_id: str, workspace_data: Dict[str, Any]) -> None:
     """Save the user's dedicated workspace state to disk."""
     udir = get_user_dir(user_id)
     w_path = udir / "workspace.json"
-    clean_workspace = dict(workspace_data)
-    # Convert sets to lists for JSON serialization
-    if "saved_jobs" in clean_workspace and isinstance(clean_workspace["saved_jobs"], set):
-        clean_workspace["saved_jobs"] = list(clean_workspace["saved_jobs"])
-    if "applied_jobs" in clean_workspace and isinstance(clean_workspace["applied_jobs"], set):
-        clean_workspace["applied_jobs"] = list(clean_workspace["applied_jobs"])
+    clean_workspace = make_json_serializable(workspace_data)
 
     with open(w_path, "w", encoding="utf-8") as f:
-        json.dump(clean_workspace, f, indent=2, ensure_ascii=False)
+        json.dump(clean_workspace, f, indent=2, ensure_ascii=False, default=str)
 
 
 def create_user(profile_data: Dict[str, Any], initial_workspace: Optional[Dict[str, Any]] = None) -> str:
@@ -475,7 +505,7 @@ def _create_default_registry() -> Dict[str, Any]:
     _ensure_dir(BASE_DATA_DIR / "usr_elena_rostova")
 
     with open(BASE_DATA_DIR / "usr_alex_mercer" / "profile.json", "w", encoding="utf-8") as f:
-        json.dump(alex_profile, f, indent=2, ensure_ascii=False)
+        json.dump(alex_profile, f, indent=2, ensure_ascii=False, default=str)
     with open(BASE_DATA_DIR / "usr_alex_mercer" / "workspace.json", "w", encoding="utf-8") as f:
         json.dump({
             "application_pipeline": {},
@@ -486,10 +516,10 @@ def _create_default_registry() -> Dict[str, Any]:
             "interview_prep_packs": {},
             "outreach_campaigns": {},
             "discovered_jobs": [],
-        }, f, indent=2)
+        }, f, indent=2, default=str)
 
     with open(BASE_DATA_DIR / "usr_elena_rostova" / "profile.json", "w", encoding="utf-8") as f:
-        json.dump(elena_profile, f, indent=2, ensure_ascii=False)
+        json.dump(elena_profile, f, indent=2, ensure_ascii=False, default=str)
     with open(BASE_DATA_DIR / "usr_elena_rostova" / "workspace.json", "w", encoding="utf-8") as f:
         json.dump({
             "application_pipeline": {},
@@ -500,7 +530,7 @@ def _create_default_registry() -> Dict[str, Any]:
             "interview_prep_packs": {},
             "outreach_campaigns": {},
             "discovered_jobs": [],
-        }, f, indent=2)
+        }, f, indent=2, default=str)
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     registry_data = {
@@ -533,6 +563,6 @@ def _create_default_registry() -> Dict[str, Any]:
     }
 
     with open(REGISTRY_FILE, "w", encoding="utf-8") as f:
-        json.dump(registry_data, f, indent=2, ensure_ascii=False)
+        json.dump(registry_data, f, indent=2, ensure_ascii=False, default=str)
 
     return registry_data

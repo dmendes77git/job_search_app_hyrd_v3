@@ -9,7 +9,6 @@ import functools
 import re
 from typing import Any, Dict, Optional, Tuple
 
-from src.agents.matching.scoring import extract_target_countries
 from .salary_benchmarks import (
     GEOGRAPHIC_SALARY_FACTORS,
     MARKET_BENCHMARKS,
@@ -346,6 +345,7 @@ def resolve_location_factor(
     target_loc_clean = (target_location or "").strip()
     job_loc_clean = (job_location or "").strip()
 
+    from src.agents.matching.extractors import extract_target_countries
     target_countries = extract_target_countries(target_loc_clean) if target_loc_clean else []
     job_countries = extract_target_countries(job_loc_clean) if job_loc_clean else []
 

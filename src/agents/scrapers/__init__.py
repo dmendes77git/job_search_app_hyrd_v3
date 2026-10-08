@@ -1,68 +1,178 @@
 """Scrapers package for Hyrd job discovery.
 
 Contains specialized scrapers organized by category:
-- ats_scrapers: Ashby, Greenhouse, Lever, SmartRecruiters direct ATS APIs
-- aggregator_scrapers: JobSpy multi-board engine, Apify actor
-- remote_scrapers: Arbeitnow, Jobicy, RemoteOK, Remotive, LinkedIn, WeWorkRemotely, TelecomCrossing, ZipRecruiter
-- base: Common HTTP headers, text normalization, and resilience wrappers
+- ats_scrapers: Tier 1 Direct ATS APIs (Greenhouse, Lever, Ashby, Workday, BambooHR, BreezyHR, SmartRecruiters)
+- remote_scrapers: Tier 2 Public JSON APIs & RSS feeds (Jobicy, Arbeitnow, RemoteOK, Remotive, Himalayas, WeWorkRemotely, Hacker News)
+- aggregator_scrapers: Tier 3 Aggregators & Cloud Actors (JobSpy multi-engine, Apify actor, JSearch RapidAPI, Jooble)
+- regional_scrapers: Tier 4 Regional & Portuguese Portals (ITJobs.pt, Net-Empregos, Landing.jobs, Teamlyzer, InfoJobs)
+- niche_scrapers: Tier 4 DOM & Niche Scrapers (LinkedIn Guest, BuiltIn Next.js, TelecomCrossing, ZipRecruiter DOM, Wellfound Apify)
+- base: Universal BaseScraper ABC, JobPosting Pydantic schema, header rotation, and resilience wrappers
 """
 
 from .base import (
+    BaseScraper,
+    JobPosting,
+    WorkType,
+    generate_job_id,
+    get_random_user_agent,
+    get_browser_headers,
+    USER_AGENTS,
     DEFAULT_HEADERS,
+    HTTP_HEADERS,
     clean_html_text,
     normalize_company_slug,
     safe_fetch_json,
     safe_scrape,
 )
 from .ats_scrapers import (
+    GreenhouseScraper,
+    LeverScraper,
+    AshbyScraper,
+    WorkdayScraper,
+    BambooHRScraper,
+    BreezyHRScraper,
+    SmartRecruitersScraper,
     fetch_ashby_jobs,
     fetch_greenhouse_jobs,
     fetch_lever_jobs,
     fetch_smartrecruiters_jobs,
-)
-from .aggregator_scrapers import (
-    silence_jobspy_loggers,
-    fetch_jobspy_jobs,
-    fetch_apify_jobs,
+    fetch_workday_jobs,
+    fetch_bamboohr_jobs,
+    fetch_breezyhr_jobs,
 )
 from .remote_scrapers import (
+    JobicyScraper,
+    ArbeitnowScraper,
+    RemoteOKScraper,
+    RemotiveScraper,
+    HimalayasScraper,
+    WeWorkRemotelyScraper,
+    HackerNewsScraper,
     fetch_arbeitnow_jobs,
     fetch_jobicy_jobs,
     fetch_remoteok_jobs,
     fetch_remotive_jobs,
-    fetch_linkedin_jobs,
+    fetch_himalayas_jobs,
     fetch_weworkremotely_jobs,
+    fetch_hackernews_jobs,
+    fetch_linkedin_jobs,
     fetch_telecomcrossing_jobs,
     fetch_ziprecruiter_jobs,
 )
+from .aggregator_scrapers import (
+    JobSpyScraper,
+    ApifyScraper,
+    JSearchScraper,
+    JoobleScraper,
+    silence_jobspy_loggers,
+    fetch_jobspy_jobs,
+    fetch_apify_jobs,
+    fetch_jsearch_jobs,
+    fetch_jooble_jobs,
+    fetch_wellfound_apify_jobs,
+    fetch_glassdoor_apify_jobs,
+)
 from .portuguese_scrapers import (
+    ITJobsScraper,
+    NetEmpregosScraper,
+    LandingJobsScraper,
+    TeamlyzerScraper,
     fetch_itjobs_jobs,
     fetch_netempregos_jobs,
     fetch_landingjobs_jobs,
+    fetch_teamlyzer_jobs,
+)
+from .regional_scrapers import (
+    InfoJobsScraper,
+    fetch_infojobs_jobs,
+)
+from .niche_scrapers import (
+    LinkedInGuestScraper,
+    BuiltInScraper,
+    TelecomCrossingScraper,
+    ZipRecruiterDOMScraper,
+    WellfoundScraper,
+    fetch_builtin_jobs,
+    fetch_wellfound_jobs,
 )
 
 __all__ = [
+    # Base & Models
+    "BaseScraper",
+    "JobPosting",
+    "WorkType",
+    "generate_job_id",
+    "get_random_user_agent",
+    "get_browser_headers",
+    "USER_AGENTS",
     "DEFAULT_HEADERS",
+    "HTTP_HEADERS",
     "clean_html_text",
     "normalize_company_slug",
     "safe_fetch_json",
     "safe_scrape",
+    # Tier 1 Direct ATS
+    "GreenhouseScraper",
+    "LeverScraper",
+    "AshbyScraper",
+    "WorkdayScraper",
+    "BambooHRScraper",
+    "BreezyHRScraper",
+    "SmartRecruitersScraper",
     "fetch_ashby_jobs",
     "fetch_greenhouse_jobs",
     "fetch_lever_jobs",
     "fetch_smartrecruiters_jobs",
-    "silence_jobspy_loggers",
-    "fetch_jobspy_jobs",
-    "fetch_apify_jobs",
+    "fetch_workday_jobs",
+    "fetch_bamboohr_jobs",
+    "fetch_breezyhr_jobs",
+    # Tier 2 Public JSON & RSS
+    "JobicyScraper",
+    "ArbeitnowScraper",
+    "RemoteOKScraper",
+    "RemotiveScraper",
+    "HimalayasScraper",
+    "WeWorkRemotelyScraper",
+    "HackerNewsScraper",
     "fetch_arbeitnow_jobs",
     "fetch_jobicy_jobs",
     "fetch_remoteok_jobs",
     "fetch_remotive_jobs",
-    "fetch_linkedin_jobs",
+    "fetch_himalayas_jobs",
     "fetch_weworkremotely_jobs",
-    "fetch_telecomcrossing_jobs",
-    "fetch_ziprecruiter_jobs",
+    "fetch_hackernews_jobs",
+    # Tier 3 Aggregators & Cloud Actors
+    "JobSpyScraper",
+    "ApifyScraper",
+    "JSearchScraper",
+    "JoobleScraper",
+    "silence_jobspy_loggers",
+    "fetch_jobspy_jobs",
+    "fetch_apify_jobs",
+    "fetch_jsearch_jobs",
+    "fetch_jooble_jobs",
+    "fetch_wellfound_apify_jobs",
+    "fetch_glassdoor_apify_jobs",
+    # Tier 4 Regional & Portuguese
+    "ITJobsScraper",
+    "NetEmpregosScraper",
+    "LandingJobsScraper",
+    "TeamlyzerScraper",
+    "InfoJobsScraper",
     "fetch_itjobs_jobs",
     "fetch_netempregos_jobs",
     "fetch_landingjobs_jobs",
+    "fetch_teamlyzer_jobs",
+    "fetch_infojobs_jobs",
+    # Tier 4 Niche & DOM
+    "LinkedInGuestScraper",
+    "BuiltInScraper",
+    "TelecomCrossingScraper",
+    "ZipRecruiterDOMScraper",
+    "WellfoundScraper",
+    "fetch_linkedin_jobs",
+    "fetch_telecomcrossing_jobs",
+    "fetch_ziprecruiter_jobs",
+    "fetch_builtin_jobs",
+    "fetch_wellfound_jobs",
 ]

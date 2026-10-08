@@ -22,7 +22,12 @@ from .extractors import (
 )
 from .engine import (
     calculate_semantic_fit,
+    calculate_quality_match,
     evaluate_role_match,
+    extract_seniority_level,
+    calculate_temporal_decay,
+    get_channel_advantage_multiplier,
+    calculate_gatekeeper_audit,
 )
 from .reranker import (
     rerank_top_jobs_with_gemini,
@@ -42,6 +47,11 @@ __all__ = [
     "check_job_country_match",
     "determine_work_mode",
     "calculate_semantic_fit",
+    "calculate_quality_match",
     "evaluate_role_match",
+    "extract_seniority_level",
+    "calculate_temporal_decay",
+    "get_channel_advantage_multiplier",
+    "calculate_gatekeeper_audit",
     "rerank_top_jobs_with_gemini",
 ]

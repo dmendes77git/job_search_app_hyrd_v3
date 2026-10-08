@@ -173,7 +173,7 @@ def show_company_dossier_dialog(job: dict, profile: dict) -> None:
     with d1:
         st.download_button(
             label="📥 Export Dossier (.json)",
-            data=json.dumps(dossier, indent=2),
+            data=json.dumps(dossier, indent=2, default=str),
             file_name=f"Dossier_{company_name.replace(' ', '_').lower()}.json",
             mime="application/json",
             use_container_width=True,

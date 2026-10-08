@@ -337,12 +337,23 @@ def render_screen1() -> None:
             selected_model = st.session_state.get("gemini_model", "Auto")
             clean_pref_model = "Auto" if "Auto" in selected_model else selected_model
 
-            with st.spinner("🤖 Gemini Agent analyzing resume structure, extracting competencies & target queries (with auto-retry)..."):
-                parsed_data, is_live_ai, status_msg = parse_resume_with_gemini(
-                    resume_input,
-                    api_key=st.session_state.get("gemini_api_key"),
-                    preferred_model=clean_pref_model,
-                )
+            with st.spinner("🤖 ProfileAgent (Stages 1 & 2) analyzing resume structure, extracting competencies & target queries (with auto-retry)..."):
+                try:
+                    from src.pipeline import run_profile_stage
+                    from src.schemas import ProfileAgentInput
+                    profile_out = run_profile_stage(
+                        ProfileAgentInput(raw_resume_text=resume_input, file_type="txt"),
+                        api_key=st.session_state.get("gemini_api_key"),
+                    )
+                    parsed_data = profile_out.profile.to_dict()
+                    status_msg = profile_out.status_message
+                    st.session_state.recruiter_gap_analysis = profile_out.recruiter_gap_analysis
+                except Exception:
+                    parsed_data, is_live_ai, status_msg = parse_resume_with_gemini(
+                        resume_input,
+                        api_key=st.session_state.get("gemini_api_key"),
+                        preferred_model=clean_pref_model,
+                    )
 
             # Store in session state
             st.session_state.resume_text = resume_input

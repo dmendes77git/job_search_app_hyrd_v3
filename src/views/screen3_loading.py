@@ -118,8 +118,34 @@ def render_screen3() -> None:
                 unsafe_allow_html=True,
             )
 
-        # Execute Live Scraper Pipeline
-        jobs, total_scraped = search_live_jobs_pipeline(profile, on_progress=on_agent_progress)
+        # Execute Multi-Agent Search & Match Pipeline (ScoutAgent & MatchAgent)
+        jobs = []
+        total_scraped = 0
+        try:
+            from src.pipeline import run_scout_stage, run_match_stage
+            from src.schemas import ScoutAgentInput, MatchAgentInput, UserProfile
+            scout_profile = UserProfile(**profile)
+            scout_out = run_scout_stage(
+                ScoutAgentInput(
+                    profile=scout_profile,
+                    apify_api_token=st.session_state.get("apify_api_token"),
+                ),
+                on_progress=on_agent_progress,
+            )
+            total_scraped = scout_out.raw_jobs_found
+            match_out = run_match_stage(
+                MatchAgentInput(
+                    profile=scout_profile,
+                    candidate_jobs=scout_out.filtered_jobs,
+                    enable_gemini_rerank=bool(st.session_state.get("gemini_api_key")),
+                ),
+                api_key=st.session_state.get("gemini_api_key"),
+            )
+            jobs = [j.to_dict() for j in match_out.ranked_jobs]
+        except Exception as exc:
+            import logging
+            logging.getLogger("Hyrd.Screen3").warning(f"Multi-Agent pipeline fallback triggered: {exc}", exc_info=True)
+            jobs, total_scraped = search_live_jobs_pipeline(profile, on_progress=on_agent_progress)
 
         st.session_state.discovered_jobs = jobs
         st.session_state.total_scraped_count = total_scraped

@@ -385,7 +385,7 @@ def render_screen5() -> None:
     with b_col3:
         st.download_button(
             label="📥 Export Pipeline (JSON)",
-            data=json.dumps(pipeline, indent=2),
+            data=json.dumps(pipeline, indent=2, default=str),
             file_name="hyrd_application_pipeline.json",
             mime="application/json",
             use_container_width=True,

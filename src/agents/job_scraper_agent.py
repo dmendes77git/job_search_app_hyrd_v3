@@ -85,7 +85,7 @@ __all__ = [
 ]
 
 # Official direct Applicant Tracking Systems (ATS) - unmediated employer endpoints
-DIRECT_ATS_SOURCES = {"ashby", "greenhouse", "lever", "smartrecruiters"}
+DIRECT_ATS_SOURCES = {"ashby", "greenhouse", "lever", "smartrecruiters", "workday", "bamboohr", "breezyhr"}
 
 
 def optimize_query_for_source(query: str, source_name: str) -> str:
@@ -366,7 +366,7 @@ def search_live_jobs_pipeline(
         log(98, "GeminiReranker", "Pass 2: Executing deep semantic reranking with Gemini Flash...")
         unique_matches = rerank_top_jobs_with_gemini(unique_matches, profile, api_key=gemini_key, limit=15)
 
-    top_matches = unique_matches[:25] if unique_matches else all_raw[:10]
+    top_matches = unique_matches[:100] if unique_matches else all_raw[:25]
 
     completion_msg = f"Discovered {len(top_matches)} high-confidence matches tailored to your profile."
     if excluded_by_negative > 0:

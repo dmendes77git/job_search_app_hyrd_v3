@@ -4,6 +4,7 @@ Renders an individual matched opportunity card with metadata, Tech Stack Alignme
 salary market benchmarking, and agentic action triggers.
 """
 
+import html
 from typing import Any, Dict
 import streamlit as st
 
@@ -20,6 +21,7 @@ from src.components.source_badges import (
     render_tech_stack_matrix_html,
 )
 from src.utils.date_utils import parse_days_since_posted
+from src.utils.job_summarizer import render_summary_html, summarize_job_description
 from src.utils.pipeline_manager import (
     STAGE_APPLIED,
     STAGE_SAVED,
@@ -37,7 +39,7 @@ def render_job_card(
     target_loc: str = "",
 ) -> None:
     """Render a comprehensive, interactive job card inside a Streamlit bordered container."""
-    job_id = job["id"]
+    job_id = job.get("id") or job.get("job_id") or ""
     is_saved = job_id in st.session_state.get("saved_jobs", set())
     is_applied = job_id in st.session_state.get("applied_jobs", set())
     job_type = job.get("job_type", "Full-time (Remote)")
@@ -52,22 +54,62 @@ def render_job_card(
     )
 
     with st.container(border=True):
-        # Header Line 1: Job Position + Match Score Badge
-        h_left, h_right = st.columns([3, 1])
+        # Decoupled Dual Metrics & Strategic Quadrant
+        profile_fit = int(round(job.get("profile_fit_score", job.get("fit_score", 0))))
+        interview_likelihood = int(round(job.get("interview_likelihood_pct", (job.get("fit_score", 70) * 0.8))))
+        quadrant = str(job.get("strategic_quadrant", "QI")).strip()
+
+        # Strategic Decision Matrix: name, badge color, border, and status indicator
+        quad_upper = quadrant.upper()
+        if "QIII" in quad_upper or "STRETCH" in quad_upper:
+            matrix_name = "Stretch Role"
+            matrix_icon = "🔵"
+            quad_bg, quad_color, quad_border = "#eff6ff", "#1d4ed8", "#bfdbfe"
+        elif "QII" in quad_upper or "REFERRAL" in quad_upper:
+            matrix_name = "Referral Outreach"
+            matrix_icon = "🟡"
+            quad_bg, quad_color, quad_border = "#fffbeb", "#b45309", "#fde68a"
+        elif "QIV" in quad_upper or "LOW" in quad_upper:
+            matrix_name = "Low Viability"
+            matrix_icon = "🔴"
+            quad_bg, quad_color, quad_border = "#fef2f2", "#b91c1c", "#fecaca"
+        elif "QI" in quad_upper or "PRIORITY" in quad_upper:
+            matrix_name = "Priority Fast-Track"
+            matrix_icon = "🟢"
+            quad_bg, quad_color, quad_border = "#ecfdf5", "#047857", "#a7f3d0"
+        else:
+            matrix_name = "Low Viability"
+            matrix_icon = "🔴"
+            quad_bg, quad_color, quad_border = "#fef2f2", "#b91c1c", "#fecaca"
+
+        matrix_badge = f"{matrix_icon} {matrix_name}"
+        badge_color = job.get("badge_color", "#2563eb")
+
+        # Header Line 1: Job Position + Dual Badges
+        h_left, h_right = st.columns([2.1, 1.9])
+        job_title = job.get("title") or job.get("job_title") or "Position"
         with h_left:
-            st.markdown(f"### {job['title']}")
+            st.markdown(f"### {job_title}")
         with h_right:
             st.markdown(
-                f"<div style='text-align: right; margin-top: 0.35rem;'>"
-                f"<span style='background: {job['badge_color']}; color: #ffffff; padding: 0.28rem 0.8rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 700; white-space: nowrap;'>"
-                f"{job['fit_score']}% Match</span></div>",
+                f"<div style='text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; margin-top: 0.2rem;'>"
+                f"<div style='display: flex; gap: 0.35rem; align-items: center; justify-content: flex-end; flex-wrap: wrap;'>"
+                f"<span style='background: {badge_color}; color: #ffffff; padding: 0.22rem 0.65rem; border-radius: 9999px; font-size: 0.82rem; font-weight: 700; white-space: nowrap;'>"
+                f"🎯 {profile_fit}% Fit</span>"
+                f"<span style='background: {quad_bg}; color: {quad_color}; border: 1px solid {quad_border}; padding: 0.2rem 0.55rem; border-radius: 9999px; font-size: 0.76rem; font-weight: 700; white-space: nowrap;'>"
+                f"{matrix_badge}</span>"
+                f"</div>"
+                f"<div style='font-size: 0.74rem; font-weight: 700; color: #059669;'>"
+                f"📈 {interview_likelihood}% Callback Odds"
+                f"</div>"
+                f"</div>",
                 unsafe_allow_html=True,
             )
 
         # Header Line 2: Company name / size / source badge / Direct ATS Trust Tag / Target Dream
         src_l = source_label.lower()
         is_direct_ats = job.get("is_direct_ats") or any(
-            ats in src_l for ats in ["ashby", "greenhouse", "lever", "smartrecruiters"]
+            ats in src_l for ats in ["ashby", "greenhouse", "lever", "smartrecruiters", "workday", "bamboohr", "breezyhr"]
         )
 
         if "linkedin" in src_l:
@@ -96,9 +138,13 @@ def render_job_card(
             else ""
         )
 
+        company_name = job.get("company") or job.get("company_name") or "Employer"
+        company_size = job.get("company_size") or job.get("metadata", {}).get("company_size") or "Scale-up / Enterprise"
+        company_size_part = f" &nbsp;/&nbsp; {company_size}" if company_size else ""
+
         st.markdown(
             f"<div style='color: #2563eb; font-weight: 600; font-size: 1rem; margin-top: -0.65rem; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;'>"
-            f"<span>{job['company']} &nbsp;/&nbsp; {job['company_size']}</span>"
+            f"<span>{company_name}{company_size_part}</span>"
             f"<span style='background: {badge_bg}; color: {badge_color}; border: 1px solid {badge_border}; font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 4px;'>"
             f"{badge_icon} {source_label}</span>"
             f"{direct_ats_badge_html}"
@@ -114,7 +160,8 @@ def render_job_card(
             raw_salary = job.get("salary", "Competitive")
             clean_salary = raw_salary.replace("$", r"\$")
 
-            st.markdown(f"📍 **Location:** {job['location']}")
+            job_loc = job.get("location") or "Remote"
+            st.markdown(f"📍 **Location:** {job_loc}")
 
             # Days since posted (moved after Location)
             days_count, days_label = parse_days_since_posted(
@@ -129,8 +176,43 @@ def render_job_card(
             st.markdown(render_salary_badge(salary_eval), unsafe_allow_html=True)
 
         with col_right:
-            st.markdown("**JOB DESCRIPTION**")
-            st.write(job["description"])
+            st.markdown("**📋 ROLE SUMMARY**")
+            desc_text = job.get("description") or job.get("full_description") or job.get("description_text") or "No description provided."
+
+            if "_summary_data" in job:
+                summary_data = job["_summary_data"]
+            elif job.get("short_summary"):
+                summary_data = {
+                    "overview": job["short_summary"],
+                    "bullets": [],
+                    "formatted_markdown": job["short_summary"],
+                    "raw_cleaned": desc_text,
+                    "is_short": True,
+                }
+                job["_summary_data"] = summary_data
+            else:
+                summary_data = summarize_job_description(
+                    raw_text=desc_text,
+                    title=job_title,
+                    company=job.get("company", ""),
+                )
+                job["_summary_data"] = summary_data
+
+            summary_html = render_summary_html(summary_data)
+            st.markdown(
+                f"<div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 0.95rem; margin-bottom: 0.65rem;'>"
+                f"{summary_html}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            with st.expander("📄 View Full Job Description", expanded=False):
+                st.markdown(
+                    f"<div style='max-height: 250px; overflow-y: auto; font-size: 0.82rem; color: #475569; padding: 0.5rem; background: #ffffff; border-radius: 4px; border: 1px solid #e2e8f0; white-space: pre-wrap; line-height: 1.45;'>"
+                    f"{html.escape(desc_text)}"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
 
             # Tech Stack Alignment Matrix
             matched_skills_list = job.get("matched_skills", [])
@@ -146,6 +228,15 @@ def render_job_card(
 
         with col_reasons:
             with st.expander("🤖 Agent Match Insights & Skill Analysis", expanded=False):
+                rec_action = job.get("recommended_action")
+                if rec_action:
+                    st.markdown(
+                        f"<div style='background: {quad_bg}; color: {quad_color}; border: 1px solid {quad_border}; padding: 0.45rem 0.7rem; border-radius: 6px; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.65rem;'>"
+                        f"🎯 <b>Strategy — {matrix_name} ({matrix_icon}):</b> {rec_action}"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
                 st.markdown("**Why You're a Match:**")
                 for reason in job.get("key_reasons", []):
                     st.markdown(f"- {reason}")
@@ -160,24 +251,29 @@ def render_job_card(
                 if job.get("missing_skills"):
                     missing_html = " ".join([
                         f"<span style='background: #fef3c7; color: #b45309; border: 1px solid #fde68a; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.8rem;'>! {s}</span>"
-                        for s in job["missing_skills"]
+                        for s in job.get("missing_skills", [])
                     ])
                     st.markdown(f"**Potential Growth Gaps:**<br>{missing_html}", unsafe_allow_html=True)
 
                 st.markdown("**💰 Market Compensation Evaluation:**")
                 loc_calib = salary_eval.get("location_context", "Standard Benchmark")
+                bench_title = salary_eval.get("benchmark_title") or job.get("title", "Role")
+                bench_range = str(salary_eval.get("benchmark_range", "$100k-$150k")).replace('$', r'\$')
+                score_val = salary_eval.get("score", 75)
+                rank_val = salary_eval.get("rank", "Market Benchmark")
+                assessment_val = str(salary_eval.get("assessment", "Aligned with market standard.")).replace('$', r'\$')
                 st.markdown(
-                    f"- **Market Benchmark ({salary_eval['benchmark_title']}):** {salary_eval['benchmark_range'].replace('$', r'\$')}\n"
-                    f"- **Salary Score:** {salary_eval['score']}/100 ({salary_eval['rank']})\n"
+                    f"- **Market Benchmark ({bench_title}):** {bench_range}\n"
+                    f"- **Salary Score:** {score_val}/100 ({rank_val})\n"
                     f"- **Target Location Calibration:** {loc_calib}\n"
-                    f"- **Assessment:** {salary_eval['assessment'].replace('$', r'\$')}"
+                    f"- **Assessment:** {assessment_val}"
                 )
 
         with col_actions:
             # 1. Primary External Link
             st.link_button(
                 "Apply on Job Site ↗",
-                url=job.get("apply_url", "https://www.google.com/search?q=jobs"),
+                url=job.get("apply_url") or job.get("url") or "https://www.google.com/search?q=jobs",
                 type="primary",
                 use_container_width=True,
             )
@@ -195,7 +291,7 @@ def render_job_card(
                     else:
                         st.session_state.saved_jobs.add(job_id)
                         add_or_update_pipeline(job, stage=STAGE_SAVED)
-                        st.toast(f"Saved {job['title']} to your Application Kanban!")
+                        st.toast(f"Saved {job_title} to your Application Kanban!")
                     st.rerun()
 
             with btn_col2:
@@ -211,11 +307,11 @@ def render_job_card(
                         pipeline = get_pipeline()
                         if job_id in pipeline and pipeline[job_id].get("stage") == STAGE_APPLIED:
                             pipeline[job_id]["stage"] = STAGE_SAVED
-                        st.toast(f"Reverted application status for {job['title']}")
+                        st.toast(f"Reverted application status for {job_title}")
                     else:
                         st.session_state.applied_jobs.add(job_id)
                         add_or_update_pipeline(job, stage=STAGE_APPLIED)
-                        st.toast(f"Moved {job['title']} to 'Applied' in your Application Kanban!")
+                        st.toast(f"Moved {job_title} to 'Applied' in your Application Kanban!")
                     st.rerun()
 
             # 3. Action Buttons below "Save" and "Track App"

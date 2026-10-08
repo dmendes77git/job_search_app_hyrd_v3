@@ -1,7 +1,10 @@
 """
 Hyrd — Autonomous Multi-Agent Career Platform
 Tagline: Don't just search. Get Hyrd!
+Powered by google-antigravity framework and Gemini AI.
 """
+
+from __future__ import annotations
 
 import os
 import logging
@@ -105,6 +108,14 @@ from src.utils.user_manager import (
     get_user_profile,
     flush_session_to_user_workspace,
 )
+from src.pipeline import (
+    MultiAgentJobPipeline,
+    run_profile_stage,
+    run_scout_stage,
+    run_match_stage,
+    run_report_stage,
+    run_doc_stage,
+)
 
 
 def main() -> None:
@@ -118,7 +129,7 @@ def main() -> None:
     cand_color = active_profile.get("avatar_color", "#2563eb")
     cand_initials = "".join([part[0].upper() for part in cand_name.split() if part][:2]) or "U"
 
-    # 2. Render App Header
+    # 2. Render App Header Banner
     st.markdown(
         f"""
         <div class="app-banner">
@@ -139,9 +150,6 @@ def main() -> None:
                         {cand_initials}
                     </div>
                     <span>{cand_name}</span>
-                </div>
-                <div class="badge-module">
-                    v4 Autonomous Agentic
                 </div>
             </div>
         </div>
@@ -306,11 +314,12 @@ def main() -> None:
             """
             ---
             <div style="font-size: 0.78rem; color: #64748b;">
-                <strong>Module 2 Active:</strong><br>
-                • File Upload (.pdf, .docx, .txt)<br>
-                • Gemini 3.8 Flash Resume Agent<br>
-                • Pydantic Structured Output<br>
-                • Tailored CV & Cover Letter Generation
+                <strong>google-antigravity Pipeline Active:</strong><br>
+                • ProfileAgent (Stages 1 & 2 Intake & Audit)<br>
+                • ScoutAgent (Stage 3 Multi-Source Crawlers)<br>
+                • MatchAgent (Stages 4 & 5 Semantic Scoring)<br>
+                • ReportAgent (Stage 6 Morning Intelligence)<br>
+                • DocAgent (On-Demand ATS CV & Cover Letter)
             </div>
             """,
             unsafe_allow_html=True,
