@@ -1,8 +1,10 @@
 """Company Intelligence Dossier Dialog component."""
 
 import json
+import re
 import streamlit as st
 from src.agents.company_intelligence_agent import generate_company_dossier
+from src.tools.dossier_exporter import build_dossier_docx, build_dossier_pdf
 from src.utils.user_manager import flush_session_to_user_workspace
 
 
@@ -60,6 +62,32 @@ def show_company_dossier_dialog(job: dict, profile: dict) -> None:
         </div>""",
         unsafe_allow_html=True,
     )
+
+    # Side-by-side Download Buttons below the dossier summary
+    dl_col1, dl_col2 = st.columns(2)
+    clean_fn = re.sub(r'[^a-zA-Z0-9_-]', '_', company_name.strip()).lower()
+    with dl_col1:
+        docx_bytes = build_dossier_docx(dossier)
+        st.download_button(
+            label="📥 Download Dossier (.docx)",
+            data=docx_bytes,
+            file_name=f"Dossier_{clean_fn}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True,
+            key=f"btn_dl_dossier_docx_{cache_key}",
+        )
+    with dl_col2:
+        pdf_bytes = build_dossier_pdf(dossier)
+        st.download_button(
+            label="📥 Download Dossier (.pdf)",
+            data=pdf_bytes,
+            file_name=f"Dossier_{clean_fn}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key=f"btn_dl_dossier_pdf_{cache_key}",
+        )
+
+    st.markdown("<div style='margin-bottom: 0.75rem;'></div>", unsafe_allow_html=True)
 
     tab_biz, tab_tech, tab_cult, tab_q = st.tabs([
         "💼 Business & Funding",

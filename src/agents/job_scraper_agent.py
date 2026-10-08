@@ -85,7 +85,10 @@ __all__ = [
 ]
 
 # Official direct Applicant Tracking Systems (ATS) - unmediated employer endpoints
-DIRECT_ATS_SOURCES = {"ashby", "greenhouse", "lever", "smartrecruiters", "workday", "bamboohr", "breezyhr"}
+from src.agents.scrapers.base import DIRECT_ATS_SOURCES
+
+_QUERY_PARENS_RE = re.compile(r"\s*\([^)]*\)")
+_QUERY_PUNCT_RE = re.compile(r"[/\\,]+")
 
 
 def optimize_query_for_source(query: str, source_name: str) -> str:
@@ -98,8 +101,8 @@ def optimize_query_for_source(query: str, source_name: str) -> str:
     """
     if not query:
         return ""
-    q = re.sub(r"\s*\([^)]*\)", "", query).strip()
-    q_clean = re.sub(r"[/\\,]+", " ", q).strip()
+    q = _QUERY_PARENS_RE.sub("", query).strip()
+    q_clean = _QUERY_PUNCT_RE.sub(" ", q).strip()
 
     source_lower = source_name.lower()
     if any(ats in source_lower for ats in DIRECT_ATS_SOURCES):
@@ -340,6 +343,7 @@ def search_live_jobs_pipeline(
             badge_color = "#f59e0b"
 
         job["fit_score"] = fit_score
+        job["profile_fit_score"] = float(fit_score)
         job["badge_color"] = badge_color
         job["matched_skills"] = matched_skills
         job["key_reasons"] = reasons

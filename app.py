@@ -103,6 +103,8 @@ from src.views.screen3_loading import render_screen3
 from src.views.screen4_dashboard import render_screen4
 from src.views.screen5_pipeline import render_screen5
 from src.components.job_scout_dialog import show_job_scout_dialog
+from src.components.dialogs.company_dialog import show_company_dossier_dialog
+from src.tools.dossier_exporter import build_dossier_docx, build_dossier_pdf
 from src.utils.user_manager import (
     get_active_user_id,
     get_user_profile,

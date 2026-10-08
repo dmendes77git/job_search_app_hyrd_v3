@@ -81,6 +81,17 @@ HTTP_HEADERS = {
 }
 DEFAULT_HEADERS = HTTP_HEADERS
 
+# Authoritative set of direct ATS endpoints (unmediated employer portals)
+DIRECT_ATS_SOURCES = {
+    "ashby",
+    "greenhouse",
+    "lever",
+    "smartrecruiters",
+    "workday",
+    "bamboohr",
+    "breezyhr",
+}
+
 
 # ============================================================================
 # 2. STRING NORMALIZATION & REGEX HELPERS

@@ -30,6 +30,7 @@ from src.utils.pipeline_manager import (
     remove_from_pipeline,
 )
 from src.utils.salary_evaluator import evaluate_job_salary
+from src.agents.scrapers.base import DIRECT_ATS_SOURCES
 
 
 def render_job_card(
@@ -108,9 +109,7 @@ def render_job_card(
 
         # Header Line 2: Company name / size / source badge / Direct ATS Trust Tag / Target Dream
         src_l = source_label.lower()
-        is_direct_ats = job.get("is_direct_ats") or any(
-            ats in src_l for ats in ["ashby", "greenhouse", "lever", "smartrecruiters", "workday", "bamboohr", "breezyhr"]
-        )
+        is_direct_ats = job.get("is_direct_ats") or any(ats in src_l for ats in DIRECT_ATS_SOURCES)
 
         if "linkedin" in src_l:
             badge_bg, badge_color, badge_border, badge_icon = "#eff6ff", "#0a66c2", "#bfdbfe", "💼"
