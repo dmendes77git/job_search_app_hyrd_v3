@@ -104,6 +104,68 @@ def analyze_recruiter_gaps(profile: UserProfile) -> Dict[str, Any]:
 
 
 # ============================================================================
+# HIERARCHICAL COMPETENCY GRAPH & PROFICIENCY TAXONOMY (Feature P1-C)
+# ============================================================================
+
+_TIER1_INDICATORS = {
+    "python", "go", "golang", "java", "c++", "c#", "rust", "typescript", "javascript",
+    "system architecture", "distributed systems", "machine learning", "deep learning",
+    "llm", "llms", "agentic ai", "generative ai", "nlp", "data engineering", "leadership",
+    "software engineering", "backend development",
+}
+
+_TIER2_INDICATORS = {
+    "docker", "kubernetes", "k8s", "aws", "gcp", "azure", "postgresql", "postgres",
+    "sql", "nosql", "redis", "mongodb", "fastapi", "react", "next.js", "django",
+    "pytorch", "tensorflow", "langchain", "ci/cd", "terraform", "microservices", "rest api",
+}
+
+
+def categorize_competencies(
+    extracted_skills: List[str],
+    experience_years: Any = "Senior",
+    summary: str = "",
+) -> Dict[str, List[str]]:
+    """
+    Categorize candidate competencies into a 3-tier taxonomy (Feature P1-C):
+    - tier_1_core: Core Drivers (Primary engineering languages & core systems)
+    - tier_2_supporting: Supporting Stack (Frameworks, datastores, cloud, devops)
+    - tier_3_familiar: Familiar & Emerging (Tooling, methodologies, secondary libraries)
+    """
+    tier_1 = []
+    tier_2 = []
+    tier_3 = []
+
+    for skill in extracted_skills:
+        s_clean = skill.strip()
+        if not s_clean:
+            continue
+        s_lower = s_clean.lower()
+        if any(ind in s_lower or s_lower in ind for ind in _TIER1_INDICATORS):
+            tier_1.append(s_clean)
+        elif any(ind in s_lower or s_lower in ind for ind in _TIER2_INDICATORS):
+            tier_2.append(s_clean)
+        else:
+            tier_3.append(s_clean)
+
+    # Balance tiers if needed
+    if not tier_1 and extracted_skills:
+        tier_1 = extracted_skills[:3]
+        tier_2 = extracted_skills[3:7]
+        tier_3 = extracted_skills[7:]
+    elif not tier_2 and tier_3:
+        half = max(1, len(tier_3) // 2)
+        tier_2 = tier_3[:half]
+        tier_3 = tier_3[half:]
+
+    return {
+        "tier_1_core": tier_1,
+        "tier_2_supporting": tier_2,
+        "tier_3_familiar": tier_3,
+    }
+
+
+# ============================================================================
 # PROFILE AGENT CLASS & RUNNER
 # ============================================================================
 
@@ -216,6 +278,7 @@ class ProfileAgent:
             linkedin_url=profile_dict.get("linkedin_url") or "",
             education=edu_list,
             raw_resume_text=raw_text,
+            competency_tiers=categorize_competencies(skills, profile_dict.get("years_of_experience", "5+ years")),
         )
 
         # 3. Recruiter Gap Analysis

@@ -34,6 +34,8 @@ from src.agents.matching.scoring import (
     calculate_semantic_fit,
     calculate_quality_match,
     extract_target_countries,
+    calculate_bayesian_callback_probability,
+    evaluate_dealbreakers,
     rerank_top_jobs_with_gemini,
 )
 from src.utils.salary_evaluator import evaluate_job_salary
@@ -90,6 +92,8 @@ class MatchAgent:
         self.tool_runner.register(calculate_semantic_fit, "calculate_semantic_fit")
         self.tool_runner.register(calculate_quality_match, "calculate_quality_match")
         self.tool_runner.register(estimate_recruiter_response_probability, "estimate_probability")
+        self.tool_runner.register(calculate_bayesian_callback_probability, "calculate_bayesian_callback_probability")
+        self.tool_runner.register(evaluate_dealbreakers, "evaluate_dealbreakers")
         self.tool_runner.register(evaluate_job_salary, "evaluate_job_salary")
 
     def run(self, input_payload: MatchAgentInput) -> MatchAgentOutput:
@@ -130,8 +134,19 @@ class MatchAgent:
                     if short_r not in missing_skills:
                         missing_skills.append(short_r)
 
-            # 3. Recruiter Response Likelihood (0.0 to 1.0)
-            prob_response = round(interview_likelihood_pct / 100.0, 4)
+            # 3. Recruiter Response Likelihood via Bayesian Callback Model (Feature P2-C)
+            bayesian_res = calculate_bayesian_callback_probability(
+                fit_score=profile_fit_score,
+                days_posted=job_dict.get("days_since_posted", 1),
+                source=job_dict.get("source", "direct_ats"),
+                is_direct_ats=bool(job_dict.get("is_direct_ats", False)),
+                missing_skills_count=len(missing_skills),
+                seniority_delta=int(job_dict.get("leveling_delta", 0)),
+                is_target_company=bool(job_dict.get("is_target_company", False)),
+            )
+            prob_response = bayesian_res["probability_of_response"]
+            interview_likelihood_pct = bayesian_res["interview_likelihood_pct"]
+
 
             # 4. Salary Benchmark Evaluation
             try:

@@ -10,6 +10,8 @@ from src.components.dialogs import (
     show_interview_prep_dialog,
     show_outreach_dialog,
     show_company_dossier_dialog,
+    show_bundle_dialog,
+    show_ats_heatmap_dialog,
 )
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "show_interview_prep_dialog",
     "show_outreach_dialog",
     "show_company_dossier_dialog",
+    "show_bundle_dialog",
+    "show_ats_heatmap_dialog",
 ]

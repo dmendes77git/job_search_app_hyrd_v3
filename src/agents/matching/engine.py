@@ -20,6 +20,8 @@ from .taxonomy import (
     _SENIORITY_TOKENS,
     expand_role_synonyms,
 )
+from .gatekeeper import evaluate_dealbreakers
+
 
 logger = logging.getLogger("Hyrd.Scoring.Engine")
 
@@ -93,77 +95,9 @@ def calculate_gatekeeper_audit(
     profile: Dict[str, Any],
     target_countries: List[str],
 ) -> Dict[str, Any]:
-    """Perform strict hard-barrier checks for work authorization, security clearance, and location radius."""
-    job_text = (job.get("title", "") + " " + job.get("description", "") + " " + job.get("full_description", "")).lower()
-    cand_text = (
-        profile.get("summary", "")
-        + " "
-        + " ".join(profile.get("extracted_skills", []))
-        + " "
-        + " ".join(profile.get("core_skills", []))
-        + " "
-        + " ".join(profile.get("certifications", []))
-    ).lower()
+    """Perform strict hard-barrier checks for work authorization, security clearance, location radius, and dealbreakers."""
+    return evaluate_dealbreakers(job=job, profile=profile, target_countries=target_countries)
 
-    work_auth_pass = True
-    geo_radius_pass = True
-    mandatory_cert_pass = True
-    reasons = []
-
-    # 1. Security Clearance Check
-    clearance_patterns = ["security clearance required", "active secret", "top secret", "ts/sci", "polygraph", "clearance required"]
-    if any(cp in job_text for cp in clearance_patterns):
-        if not any(cp in cand_text for cp in ["clearance", "secret", "ts/sci", "top secret"]):
-            work_auth_pass = False
-            reasons.append("Active Security Clearance required by employer.")
-
-    # 2. Strict US Citizenship / National Only Check
-    citizenship_patterns = ["us citizenship required", "must be a u.s. citizen", "u.s. citizens only", "us citizens only"]
-    if any(cp in job_text for cp in citizenship_patterns):
-        cand_loc = (profile.get("location_preference") or profile.get("location") or "").lower()
-        if not any(us_ind in cand_loc for us_ind in ["united states", "usa", "u.s.", "us"]):
-            work_auth_pass = False
-            reasons.append("Strict US Citizenship required (candidate outside target region).")
-
-    # 3. Visa Sponsorship Prohibition Check
-    no_visa_patterns = ["no visa sponsorship", "unable to sponsor", "cannot sponsor", "not offer visa sponsorship", "sponsorship not available"]
-    if any(nv in job_text for nv in no_visa_patterns):
-        country_match, _ = check_job_country_match(job.get("location", ""), target_countries)
-        if not country_match and target_countries and "remote" not in [tc.lower() for tc in target_countries]:
-            work_auth_pass = False
-            reasons.append("Employer does not provide visa sponsorship.")
-
-    # 4. Physical Geographic Radius for On-site / Hybrid roles
-    mode_label, is_remote, is_hybrid, is_onsite = determine_work_mode(job)
-    user_work_mode = (profile.get("work_mode") or "Remote Only").lower()
-
-    if (is_onsite or is_hybrid) and "remote only" in user_work_mode:
-        geo_radius_pass = False
-        reasons.append(f"Role requires physical presence ({mode_label}) but candidate prefers Remote Only.")
-    elif is_onsite or is_hybrid:
-        country_match, _ = check_job_country_match(job.get("location", ""), target_countries)
-        clean_tc = [tc.lower() for tc in target_countries]
-        if not country_match and target_countries and clean_tc != ["remote"]:
-            geo_radius_pass = False
-            reasons.append(f"Physical on-site/hybrid role in {job.get('location', 'unspecified location')} outside candidate target countries.")
-
-    # Compute overall gate factor
-    if not work_auth_pass:
-        overall_gate = 0.0
-    elif not geo_radius_pass:
-        overall_gate = 0.0
-    elif not mandatory_cert_pass:
-        overall_gate = 0.0
-    else:
-        overall_gate = 1.0
-
-    return {
-        "work_auth_pass": work_auth_pass,
-        "geo_radius_pass": geo_radius_pass,
-        "mandatory_cert_pass": mandatory_cert_pass,
-        "overall_gate_factor": overall_gate,
-        "disqualification_reason": "; ".join(reasons) if reasons else None,
-    }
 
 
 def calculate_quality_match(

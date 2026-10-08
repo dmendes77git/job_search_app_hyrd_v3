@@ -13,6 +13,8 @@ from .cover_letter_dialog import show_cover_letter_dialog
 from .interview_dialog import show_interview_prep_dialog
 from .outreach_dialog import show_outreach_dialog
 from .company_dialog import show_company_dossier_dialog
+from .bundle_dialog import show_bundle_dialog
+from .ats_heatmap_dialog import show_ats_heatmap_dialog
 
 __all__ = [
     "show_cv_dialog",
@@ -20,4 +22,6 @@ __all__ = [
     "show_interview_prep_dialog",
     "show_outreach_dialog",
     "show_company_dossier_dialog",
+    "show_bundle_dialog",
+    "show_ats_heatmap_dialog",
 ]

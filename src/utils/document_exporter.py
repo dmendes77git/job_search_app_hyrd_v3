@@ -418,8 +418,9 @@ def _add_formatted_runs_docx(paragraph, text: str) -> None:
 _add_formatted_runs = _add_formatted_runs_docx
 
 
-def create_interview_prep_docx(prep_pack: dict) -> io.BytesIO:
+def create_interview_prep_docx(prep_pack: Optional[dict] = None, **kwargs) -> io.BytesIO:
     """Generate a clean Microsoft Word (.docx) document for the Interview Prep Pack."""
+    pack = prep_pack or kwargs.get("prep_data") or {}
     doc = Document()
 
     for section in doc.sections:
@@ -428,7 +429,7 @@ def create_interview_prep_docx(prep_pack: dict) -> io.BytesIO:
         section.left_margin = Inches(0.75)
         section.right_margin = Inches(0.75)
 
-    raw_text = prep_pack.get("raw_markdown", "")
+    raw_text = pack.get("raw_markdown", "")
     lines = raw_text.splitlines()
 
     for line in lines:

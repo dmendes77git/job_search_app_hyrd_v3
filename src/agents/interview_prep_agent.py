@@ -295,3 +295,171 @@ def _parse_markdown_pack(markdown_text: str, title: str, company: str, cand_name
             sections["cheat_sheet"] = content.strip()
 
     return sections
+
+
+def evaluate_mock_interview_answer(
+    question: str,
+    answer_text: str,
+    job_title: str,
+    company: str,
+    api_key: Optional[str] = None,
+    preferred_model: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Evaluate candidate mock interview response in real time (Feature P3-C).
+    Scores delivery across 4 dimensions:
+      1. STAR Structure (Situation, Task, Action, Result)
+      2. Technical Depth & Precision
+      3. Quantified Impact & Business Metrics
+      4. Executive Confidence & Communication Tone
+    Returns 1-10 rubric score, diagnostic breakdown, and a polished STAR rewrite.
+    """
+    clean_ans = (answer_text or "").strip()
+    if not clean_ans:
+        return {
+            "overall_score": 0.0,
+            "verdict": "No Answer Provided",
+            "star_structure_score": 0,
+            "technical_depth_score": 0,
+            "quantified_impact_score": 0,
+            "confidence_tone_score": 0,
+            "strengths": ["Please type or dictate your answer to receive an AI evaluation."],
+            "growth_areas": ["Answer was left empty."],
+            "polished_answer": "",
+        }
+
+    # Attempt Gemini LLM Evaluation if API key provided
+    if api_key:
+        prompt = f"""You are an executive engineering hiring director and interview coach.
+Evaluate the candidate's response to the following interview question for the role of {job_title} at {company}.
+
+QUESTION:
+"{question}"
+
+CANDIDATE'S RAW ANSWER:
+"{clean_ans}"
+
+Evaluate the answer rigorously using the STAR framework (Situation, Task, Action, Result).
+Respond ONLY with a valid JSON object matching this schema:
+{{
+  "overall_score": <float between 1.0 and 10.0>,
+  "verdict": "<short verdict: e.g. Exceptional Fit | Strong Delivery | Competitive | Needs Structuring>",
+  "star_structure_score": <int between 1 and 10>,
+  "technical_depth_score": <int between 1 and 10>,
+  "quantified_impact_score": <int between 1 and 10>,
+  "confidence_tone_score": <int between 1 and 10>,
+  "strengths": ["<strength 1>", "<strength 2>"],
+  "growth_areas": ["<growth area 1>", "<growth area 2>"],
+  "polished_answer": "<A comprehensive, highly polished version of this answer demonstrating perfect STAR structure, specific technical mechanisms, and quantified business impact.>"
+}}
+"""
+        try:
+            import json
+            response = generate_gemini_content(prompt, api_key=api_key, preferred_model=preferred_model)
+            if response:
+                json_match = re.search(r"\{.*\}", response, re.DOTALL)
+                if json_match:
+                    parsed = json.loads(json_match.group(0))
+                    return {
+                        "overall_score": round(float(parsed.get("overall_score", 7.5)), 1),
+                        "verdict": str(parsed.get("verdict", "Strong Delivery")),
+                        "star_structure_score": int(parsed.get("star_structure_score", 7)),
+                        "technical_depth_score": int(parsed.get("technical_depth_score", 7)),
+                        "quantified_impact_score": int(parsed.get("quantified_impact_score", 7)),
+                        "confidence_tone_score": int(parsed.get("confidence_tone_score", 8)),
+                        "strengths": list(parsed.get("strengths", ["Clear explanation of responsibilities."])),
+                        "growth_areas": list(parsed.get("growth_areas", ["Could quantify business outcomes with exact metrics."])),
+                        "polished_answer": str(parsed.get("polished_answer", "")),
+                    }
+        except Exception:
+            pass  # Fall through to deterministic evaluation
+
+    # Deterministic Real-Time Evaluator
+    words = clean_ans.split()
+    word_count = len(words)
+    ans_lower = clean_ans.lower()
+
+    # 1. STAR Structure check
+    has_situation = any(k in ans_lower for k in ["when", "at my previous", "in my last role", "faced with", "context", "situation"])
+    has_task = any(k in ans_lower for k in ["tasked with", "goal was", "objective", "needed to", "responsibility", "target"])
+    has_action = any(k in ans_lower for k in ["i designed", "i built", "i led", "i implemented", "i created", "i engineered", "my approach", "i spearheaded"])
+    has_result = any(k in ans_lower for k in ["resulting in", "achieved", "reduced", "increased", "outcome", "impact", "delivered", "saved"])
+
+    star_matches = sum([has_situation, has_task, has_action, has_result])
+    star_score = min(10, max(4, int(star_matches * 2.2 + (2 if word_count >= 80 else 1))))
+
+    # 2. Technical Depth check
+    tech_keywords = [
+        "python", "api", "architecture", "microservices", "latency", "pipeline", "docker",
+        "kubernetes", "database", "sql", "cache", "distributed", "scalability", "cloud",
+        "security", "gemini", "llm", "rag", "eval", "metrics", "test", "ci/cd",
+    ]
+    tech_matches = sum(1 for kw in tech_keywords if kw in ans_lower)
+    tech_score = min(10, max(3, int(4 + min(6, tech_matches * 1.5))))
+
+    # 3. Quantified Impact check (numbers, percentages, currencies)
+    metric_matches = re.findall(r"\b\d+%(?:\b|\s)|[\$€][\d,]+|\b\d+k\b|\b\d+\+\b|\b\d+\s*x\b|\b\d+\s*ms\b|\b\d{2,}\b", ans_lower)
+    impact_score = min(10, max(3, 4 + len(metric_matches) * 2))
+
+    # 4. Confidence & Tone check (active ownership vs passive)
+    passive_words = ["we kind of", "i think", "maybe", "sort of", "probably"]
+    active_words = ["i directed", "i spearheaded", "i decided", "i delivered", "i owned"]
+    has_passive = any(p in ans_lower for p in passive_words)
+    has_active = any(a in ans_lower for a in active_words)
+    conf_score = 7
+    if has_active:
+        conf_score += 2
+    if has_passive:
+        conf_score -= 2
+    if word_count < 40:
+        conf_score -= 2
+    conf_score = max(3, min(10, conf_score))
+
+    overall = round((star_score * 0.35 + tech_score * 0.25 + impact_score * 0.25 + conf_score * 0.15), 1)
+
+    if overall >= 8.5:
+        verdict = "Exceptional (Executive Standard)"
+    elif overall >= 7.0:
+        verdict = "Strong Delivery (Interview Ready)"
+    elif overall >= 5.5:
+        verdict = "Competitive (Needs Metric Polish)"
+    else:
+        verdict = "Needs Structuring (Apply STAR Method)"
+
+    strengths = []
+    if has_action:
+        strengths.append("Strong direct candidate ownership (clearly articulated individual contributions vs collective effort).")
+    if tech_matches >= 2:
+        strengths.append(f"Demonstrated technical rigor by referencing concrete architectural concepts ({tech_matches} domain indicators).")
+    if metric_matches:
+        strengths.append(f"Included measurable data points ({', '.join(metric_matches[:2])}) demonstrating real business impact.")
+    if not strengths:
+        strengths.append("Directly addressed the prompt with relevant professional domain context.")
+
+    growth = []
+    if not metric_matches:
+        growth.append("Quantify the outcome: Add specific percentages, latency improvements, or cost reductions (e.g. 'reduced latency by 35%').")
+    if not has_result:
+        growth.append("Complete the 'R' in STAR: Clearly state the final business result or long-term systemic improvement.")
+    if word_count < 60:
+        growth.append("Expand answer length: Ideal spoken response length is 150-250 words (approx. 90-120 seconds).")
+    if not growth:
+        growth.append("Consider anchoring the solution to strategic business OKRs or cross-team collaboration velocity.")
+
+    polished = (
+        f"**Situation & Task:** In my previous role as Senior Lead Engineer, our team was tasked with resolving performance bottlenecks in high-throughput services for a core product line.\n\n"
+        f"**Action:** I spearheaded the architectural redesign: first diagnosing the bottlenecks, then implementing distributed asynchronous pipelines with comprehensive automated testing and observability.\n\n"
+        f"**Result:** This intervention reduced p99 query latency by 42%, increased throughput by 3.5x, and successfully supported high-velocity expansion with zero service regressions."
+    )
+
+    return {
+        "overall_score": overall,
+        "verdict": verdict,
+        "star_structure_score": star_score,
+        "technical_depth_score": tech_score,
+        "quantified_impact_score": impact_score,
+        "confidence_tone_score": conf_score,
+        "strengths": strengths,
+        "growth_areas": growth,
+        "polished_answer": polished,
+    }

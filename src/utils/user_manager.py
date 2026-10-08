@@ -566,3 +566,86 @@ def _create_default_registry() -> Dict[str, Any]:
         json.dump(registry_data, f, indent=2, ensure_ascii=False, default=str)
 
     return registry_data
+
+
+# ---------------------------------------------------------
+# Feature P1-B: Multi-CV Persona Profiles & Profile Fusion
+# ---------------------------------------------------------
+
+def get_personas(user_id: str) -> Dict[str, Any]:
+    """Retrieve all candidate personas stored for the specified user."""
+    profile = get_user_profile(user_id)
+    return profile.get("personas", {})
+
+
+def create_or_update_persona(user_id: str, persona_name: str, persona_data: Dict[str, Any]) -> None:
+    """Store or update a specialized candidate persona in the candidate's workspace profile."""
+    profile = get_user_profile(user_id)
+    if "personas" not in profile:
+        profile["personas"] = {}
+
+    clean_name = persona_name.strip()
+    if not clean_name:
+        clean_name = "Primary Focus"
+
+    persona_data["name"] = clean_name
+    persona_data["updated_at"] = datetime.now().isoformat()
+    profile["personas"][clean_name] = persona_data
+    if not profile.get("active_persona"):
+        profile["active_persona"] = clean_name
+
+    save_user_profile(user_id, profile)
+
+
+def switch_active_persona(user_id: str, persona_name: str) -> Dict[str, Any]:
+    """
+    Switch active candidate persona and populate Streamlit session state.
+    Returns the loaded persona dictionary.
+    """
+    profile = get_user_profile(user_id)
+    personas = profile.get("personas", {})
+    if persona_name not in personas:
+        # Default or fallback persona
+        return {}
+
+    target_persona = personas[persona_name]
+    profile["active_persona"] = persona_name
+    save_user_profile(user_id, profile)
+
+    try:
+        # Update session state with persona-specific attributes
+        if target_persona.get("target_role"):
+            st.session_state.target_role = target_persona["target_role"]
+            st.session_state.custom_target_role = target_persona["target_role"]
+        if target_persona.get("target_job_queries"):
+            st.session_state.target_job_queries = list(target_persona["target_job_queries"])
+        if target_persona.get("core_skills"):
+            st.session_state.primary_skills = list(target_persona["core_skills"])
+        if target_persona.get("resume_text"):
+            st.session_state.resume_text = target_persona["resume_text"]
+        if target_persona.get("experience_level"):
+            st.session_state.experience_level = target_persona["experience_level"]
+        if target_persona.get("min_salary"):
+            st.session_state.min_salary = target_persona["min_salary"]
+        if target_persona.get("work_mode"):
+            st.session_state.remote_pref = target_persona["work_mode"]
+        if "form_version" in st.session_state:
+            st.session_state.form_version += 1
+    except Exception:
+        pass
+
+    return target_persona
+
+
+def delete_persona(user_id: str, persona_name: str) -> bool:
+    """Delete a persona from the user's profile."""
+    profile = get_user_profile(user_id)
+    personas = profile.get("personas", {})
+    if persona_name in personas:
+        del personas[persona_name]
+        if profile.get("active_persona") == persona_name:
+            remaining = list(personas.keys())
+            profile["active_persona"] = remaining[0] if remaining else None
+        save_user_profile(user_id, profile)
+        return True
+    return False

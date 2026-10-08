@@ -165,6 +165,10 @@ class UserProfile(BaseModel):
     work_mode: WorkModeEnum = Field(default=WorkModeEnum.REMOTE_ONLY, description="Preferred work mode")
     target_companies: List[str] = Field(default_factory=list, description="Dream target companies for direct ATS crawls")
     negative_keywords: List[str] = Field(default_factory=list, description="Keywords to strictly filter out from search results")
+    requires_visa_sponsorship: bool = Field(default=False, description="Candidate requires visa sponsorship to work in target location")
+    strict_work_mode: bool = Field(default=False, description="Candidate treats work mode preference as a hard dealbreaker")
+    strict_salary_floor: bool = Field(default=False, description="Candidate treats minimum salary preference as a hard dealbreaker")
+    strict_dealbreakers_enabled: bool = Field(default=True, description="Whether strict dealbreaker filtering is enabled")
     
     # Compensation Preferences
     preferred_min_salary: str = Field(default="$150,000", description="Salary floor string representation")
@@ -178,6 +182,16 @@ class UserProfile(BaseModel):
     certifications: List[str] = Field(default_factory=list, description="Professional certifications (e.g. AWS, GCP, PMP)")
     languages: List[str] = Field(default_factory=lambda: ["English (Fluent)"], description="Spoken languages and proficiencies")
     linkedin_url: Optional[str] = Field(default="", description="Personal LinkedIn profile URL")
+    github_url: Optional[str] = Field(default="", description="Personal GitHub profile or organization URL")
+    github_summary: Optional[Dict[str, Any]] = Field(default=None, description="Extracted public GitHub metrics and repositories")
+    
+    # Personas & Competency Taxonomy
+    personas: Dict[str, Dict[str, Any]] = Field(default_factory=dict, description="Multiple named resume personas")
+    active_persona: str = Field(default="default", description="Currently active resume persona key")
+    competency_tiers: Dict[str, List[str]] = Field(
+        default_factory=lambda: {"core_drivers": [], "supporting_stack": [], "emerging_skills": []},
+        description="3-tier structured competency taxonomy"
+    )
     
     # Telemetry & Sync State
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -382,11 +396,17 @@ class GatekeeperAudit(BaseModel):
     work_auth_pass: bool = Field(default=True, description="Passes citizenship / work authorization checks")
     geo_radius_pass: bool = Field(default=True, description="Passes geographic physical residency / country checks")
     mandatory_cert_pass: bool = Field(default=True, description="Passes mandatory certifications / bar licenses")
+    visa_sponsorship_pass: bool = Field(default=True, description="Passes visa sponsorship requirement checks")
+    salary_floor_pass: bool = Field(default=True, description="Passes strict minimum salary threshold checks")
+    negative_keywords_pass: bool = Field(default=True, description="Passes negative keyword exclusion checks")
     overall_gate_factor: float = Field(default=1.0, ge=0.0, le=1.0, description="Binary or fractional gatekeeper multiplier")
     disqualification_reason: Optional[str] = Field(default=None, description="Primary disqualification reason if failed")
+    dealbreaker_type: Optional[str] = Field(default=None, description="Specific dealbreaker triggered if any: visa, work_mode, salary, negative_keyword, clearance, citizenship")
+    is_disqualified: bool = Field(default=False, description="True if any strict dealbreaker disqualified the opportunity")
 
     if PYDANTIC_V2:
         model_config = ConfigDict(extra="ignore")
+
 
 
 class ViabilityMetrics(BaseModel):

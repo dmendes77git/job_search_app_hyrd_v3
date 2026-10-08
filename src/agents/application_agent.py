@@ -442,6 +442,10 @@ Sincerely,
     return cover_letter.strip()
 
 
+# Backwards-compatibility alias
+generate_cover_letter = generate_customized_cover_letter
+
+
 # Re-export unified ATS document exporters for backward compatibility
 from src.utils.document_exporter import (
     create_cv_docx,

@@ -351,3 +351,176 @@ def audit_ats_cv_compatibility(
         "compliance_checks": compliance_checks,
         "metric_count": metric_count,
     }
+
+
+_SYNONYM_PAIRS = {
+    "kubernetes": ["k8s"],
+    "k8s": ["kubernetes"],
+    "postgresql": ["postgres", "pgsql"],
+    "postgres": ["postgresql", "pgsql"],
+    "javascript": ["js"],
+    "typescript": ["ts"],
+    "react": ["react.js", "reactjs"],
+    "next.js": ["nextjs"],
+    "node.js": ["nodejs", "node"],
+    "google cloud": ["gcp"],
+    "gcp": ["google cloud"],
+    "aws": ["amazon web services"],
+    "ci/cd": ["continuous integration", "cicd"],
+    "llm": ["large language models", "llms", "generative ai"],
+    "llms": ["llm", "large language models"],
+    "rag": ["retrieval augmented generation", "retrieval-augmented generation"],
+    "docker": ["containers", "containerization"],
+    "fastapi": ["rest api", "api design"],
+    "microservices": ["distributed systems"],
+}
+
+
+def _split_cv_sections(cv_markdown: str) -> Dict[str, str]:
+    """Split markdown CV into major structural sections for precise location auditing."""
+    lines = cv_markdown.splitlines()
+    sections: Dict[str, List[str]] = {
+        "Header / Contact": [],
+        "Professional Summary": [],
+        "Competencies & Skills": [],
+        "Professional Experience": [],
+        "Education & Credentials": [],
+    }
+    current_sec = "Header / Contact"
+
+    for line in lines:
+        stripped = line.strip().lower()
+        if _HEADER_SUMMARY_RE.search(stripped):
+            current_sec = "Professional Summary"
+        elif _HEADER_SKILLS_RE.search(stripped):
+            current_sec = "Competencies & Skills"
+        elif _HEADER_EXPERIENCE_RE.search(stripped):
+            current_sec = "Professional Experience"
+        elif _HEADER_EDUCATION_RE.search(stripped):
+            current_sec = "Education & Credentials"
+        sections[current_sec].append(line)
+
+    return {sec: "\n".join(sec_lines) for sec, sec_lines in sections.items()}
+
+
+def generate_ats_keyword_heatmap(
+    job: Dict[str, Any],
+    cv_markdown: str,
+    profile: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Generate an ATS Keyword Match Heatmap and Inspector (Feature P3-B).
+    Analyzes keyword frequency, exact matches, partial/synonym matches, missing critical keywords,
+    and sections where keywords reside, with concrete auto-inject suggestions.
+    """
+    kw_data = extract_ats_keywords(job, profile)
+    priority_keywords = list(dict.fromkeys(
+        kw_data.get("priority_keywords", []) +
+        kw_data.get("hard_skills", []) +
+        kw_data.get("functional_skills", [])
+    ))
+
+    cv_sections = _split_cv_sections(cv_markdown)
+    cv_lower_full = cv_markdown.lower()
+
+    heatmap_items = []
+    matched_count = 0
+    partial_count = 0
+    missing_count = 0
+
+    hard_set = set(k.lower() for k in kw_data.get("hard_skills", []))
+    func_set = set(k.lower() for k in kw_data.get("functional_skills", []))
+
+    for kw in priority_keywords:
+        kw_clean = kw.strip()
+        if not kw_clean:
+            continue
+        kw_lower = kw_clean.lower()
+        base_term = kw_lower.split("/")[0].split("(")[0].strip()
+
+        # Categorize
+        if kw_lower in hard_set:
+            category = "Hard Skill / Tech"
+        elif kw_lower in func_set:
+            category = "Domain & Strategy"
+        else:
+            category = "Core Competency"
+
+        # Check full text regex match
+        pattern = re.compile(r"\b" + re.escape(base_term) + r"\b", re.IGNORECASE)
+        matches = pattern.findall(cv_lower_full)
+        exact_count = len(matches)
+
+        # Detect sections where it appears
+        found_in_sections = []
+        for sec_name, sec_text in cv_sections.items():
+            if pattern.search(sec_text):
+                found_in_sections.append(sec_name)
+
+        if exact_count > 0:
+            status = "matched"
+            matched_count += 1
+        else:
+            # Check for synonyms
+            synonyms = _SYNONYM_PAIRS.get(base_term, [])
+            syn_found = False
+            for syn in synonyms:
+                syn_pat = re.compile(r"\b" + re.escape(syn) + r"\b", re.IGNORECASE)
+                if syn_pat.search(cv_lower_full):
+                    syn_found = True
+                    for sec_name, sec_text in cv_sections.items():
+                        if syn_pat.search(sec_text):
+                            found_in_sections.append(f"{sec_name} (as '{syn}')")
+                    break
+            if syn_found:
+                status = "partial"
+                partial_count += 1
+                exact_count = 1
+            else:
+                status = "missing"
+                missing_count += 1
+
+        is_high_impact = bool(base_term in (job.get("title") or "").lower() or kw in job.get("matched_skills", []))
+
+        heatmap_items.append({
+            "keyword": kw_clean,
+            "category": category,
+            "status": status,
+            "count": exact_count,
+            "sections": found_in_sections if found_in_sections else ["Not Present"],
+            "importance": "High" if is_high_impact else "Medium",
+        })
+
+    # Sort: Missing High-Impact first, then partial, then matched
+    status_order = {"missing": 0, "partial": 1, "matched": 2}
+    heatmap_items.sort(key=lambda x: (status_order[x["status"]], 0 if x["importance"] == "High" else 1, x["keyword"]))
+
+    total_kws = max(1, len(heatmap_items))
+    match_rate_pct = int(round(((matched_count + (partial_count * 0.6)) / total_kws) * 100))
+
+    # Auto-inject suggestions for missing keywords
+    auto_inject_suggestions = []
+    missing_items = [it for it in heatmap_items if it["status"] in ("missing", "partial")][:5]
+    for it in missing_items:
+        kw = it["keyword"]
+        if it["category"] == "Hard Skill / Tech":
+            bullet = f"• Architected scalable distributed workflows integrating **{kw}** to accelerate deployment velocity by 25%."
+            sec = "Professional Experience"
+        else:
+            bullet = f"• Spearheaded cross-functional delivery aligning **{kw}** with product roadmaps to maximize stakeholder adoption."
+            sec = "Professional Experience"
+        auto_inject_suggestions.append({
+            "keyword": kw,
+            "suggested_bullet": bullet,
+            "target_section": sec,
+        })
+
+    return {
+        "match_rate_pct": match_rate_pct,
+        "total_keywords": len(heatmap_items),
+        "matched_count": matched_count,
+        "partial_count": partial_count,
+        "missing_count": missing_count,
+        "items": heatmap_items,
+        "auto_inject_suggestions": auto_inject_suggestions,
+    }

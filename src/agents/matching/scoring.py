@@ -29,6 +29,8 @@ from .engine import (
     get_channel_advantage_multiplier,
     calculate_gatekeeper_audit,
 )
+from .gatekeeper import evaluate_dealbreakers
+from .callback_model import calculate_bayesian_callback_probability
 from .reranker import (
     rerank_top_jobs_with_gemini,
 )
@@ -53,5 +55,7 @@ __all__ = [
     "calculate_temporal_decay",
     "get_channel_advantage_multiplier",
     "calculate_gatekeeper_audit",
+    "evaluate_dealbreakers",
+    "calculate_bayesian_callback_probability",
     "rerank_top_jobs_with_gemini",
 ]

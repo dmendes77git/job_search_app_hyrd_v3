@@ -14,6 +14,8 @@ from .scoring import (
     expand_role_synonyms,
     extract_tech_skills,
     extract_required_years_experience,
+    evaluate_dealbreakers,
+    calculate_bayesian_callback_probability,
     rerank_top_jobs_with_gemini,
 )
 
@@ -29,6 +31,8 @@ __all__ = [
     "expand_role_synonyms",
     "extract_tech_skills",
     "extract_required_years_experience",
+    "evaluate_dealbreakers",
+    "calculate_bayesian_callback_probability",
     "rerank_top_jobs_with_gemini",
 ]
 

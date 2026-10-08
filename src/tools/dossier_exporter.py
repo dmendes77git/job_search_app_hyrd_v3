@@ -208,14 +208,26 @@ def build_dossier_docx(dossier_data: dict) -> io.BytesIO:
     data = dossier_data or {}
     company_name = data.get("company_name") or "Target Employer"
     stage_info = data.get("stage_and_funding") or {}
-    tech_info = data.get("tech_stack") or {}
+    raw_tech = data.get("tech_stack")
+    if isinstance(raw_tech, list):
+        tech_info = {
+            "core_languages": [str(x) for x in raw_tech[:3]],
+            "frontend_and_apps": [],
+            "backend_and_data": [str(x) for x in raw_tech[3:6]],
+            "cloud_and_infra": [str(x) for x in raw_tech[6:]],
+            "ai_and_ml": [],
+        }
+    elif isinstance(raw_tech, dict):
+        tech_info = raw_tech
+    else:
+        tech_info = {}
     culture_info = data.get("engineering_culture") or {}
     leaders = data.get("leadership_team") or []
     momentum = data.get("recent_momentum") or []
     questions = data.get("strategic_interview_questions") or []
     sentiment = data.get("culture_and_sentiment") or {}
     ats_system = data.get("ats_system") or "Ashby / Greenhouse"
-    summary_text = data.get("summary") or f"{company_name} corporate profile and strategic intelligence briefing."
+    summary_text = data.get("summary") or data.get("executive_summary") or f"{company_name} corporate profile and strategic intelligence briefing."
 
     # 1. Title & Header
     p_header = doc.add_paragraph()
@@ -503,14 +515,26 @@ def build_dossier_pdf(dossier_data: dict) -> io.BytesIO:
     data = dossier_data or {}
     company_name = data.get("company_name") or "Target Employer"
     stage_info = data.get("stage_and_funding") or {}
-    tech_info = data.get("tech_stack") or {}
+    raw_tech = data.get("tech_stack")
+    if isinstance(raw_tech, list):
+        tech_info = {
+            "core_languages": [str(x) for x in raw_tech[:3]],
+            "frontend_and_apps": [],
+            "backend_and_data": [str(x) for x in raw_tech[3:6]],
+            "cloud_and_infra": [str(x) for x in raw_tech[6:]],
+            "ai_and_ml": [],
+        }
+    elif isinstance(raw_tech, dict):
+        tech_info = raw_tech
+    else:
+        tech_info = {}
     culture_info = data.get("engineering_culture") or {}
     leaders = data.get("leadership_team") or []
     momentum = data.get("recent_momentum") or []
     questions = data.get("strategic_interview_questions") or []
     sentiment = data.get("culture_and_sentiment") or {}
     ats_system = data.get("ats_system") or "Ashby / Greenhouse"
-    summary_text = data.get("summary") or f"{company_name} corporate profile and strategic intelligence briefing."
+    summary_text = data.get("summary") or data.get("executive_summary") or f"{company_name} corporate profile and strategic intelligence briefing."
 
     pdf = DossierPDF(company_name=company_name)
     pdf.set_title(f"Company Intelligence Dossier - {company_name}")

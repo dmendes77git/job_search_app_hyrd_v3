@@ -20,8 +20,10 @@ from src.agents.matching.scoring import (
     check_job_country_match,
     determine_work_mode,
     calculate_semantic_fit,
+    evaluate_dealbreakers,
     rerank_top_jobs_with_gemini,
 )
+from src.utils.job_deduplicator import deduplicate_jobs
 from src.agents.scrapers import (
     DEFAULT_HEADERS,
     clean_html_text,
@@ -266,19 +268,34 @@ def search_live_jobs_pipeline(
         log(100, "ScoringAgent", "Network throttled — loaded verified opportunities.")
         return MOCK_JOB_RESULTS, len(MOCK_JOB_RESULTS)
 
+    # Phase: Cross-Source Fuzzy Deduplication (Feature P2-B)
+    deduped_raw, dedup_metrics = deduplicate_jobs(all_raw)
+    if dedup_metrics.get("duplicates_removed", 0) > 0:
+        log(
+            93,
+            "DeduplicationEngine",
+            f"Resolved {dedup_metrics['duplicates_removed']} duplicate postings across {dedup_metrics['cross_listed_clusters']} requisitions.",
+        )
+
     # Phase: Semantic Evaluation, Exclusions & Candidate Profile Calibration
-    log(94, "SemanticMatcher", f"Scoring {total_scraped} raw positions across multi-dimensional match criteria...")
+    log(94, "SemanticMatcher", f"Scoring {len(deduped_raw)} distinct positions across multi-dimensional match criteria...")
 
     matched_jobs = []
     excluded_by_negative = 0
 
-    for job in all_raw:
+    for job in deduped_raw:
+        # 1. Configurable Hard Deal-Breakers (Feature P2-A)
+        dealbreaker = evaluate_dealbreakers(job, profile, target_countries)
+        job["gatekeeper_audit"] = dealbreaker
+        if dealbreaker.get("is_disqualified", False) and profile.get("strict_dealbreakers_enabled", True):
+            continue
+
         job_title = job.get("title", "")
         job_comp = job.get("company", "")
         job_desc = job.get("full_description", "") or job.get("description", "")
         searchable_text = f"{job_title} {job_comp} {job_desc}".lower()
 
-        # 1. Negative Keyword / Exclusion Filter
+        # 2. Negative Keyword / Exclusion Filter
         if negative_keywords:
             if any(nk in searchable_text for nk in negative_keywords):
                 excluded_by_negative += 1

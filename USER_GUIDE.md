@@ -29,10 +29,10 @@
    - [3.6 Live Session State Inspector](#36-live-session-state-inspector)
 4. [📱 Screen-by-Screen Detailed Walkthrough](#-screen-by-screen-detailed-walkthrough)
    - [4.1 Screen 0: Candidate Account Hub & LinkedIn Auditor](#41-screen-0-candidate-account-hub--linkedin-auditor)
-   - [4.2 Screen 1: Candidate Intake, CV Parsing & Search Criteria](#42-screen-1-candidate-intake-cv-parsing--search-criteria)
-   - [4.3 Screen 2: Profile Calibration & Recruiter Fit Audit](#43-screen-2-profile-calibration--recruiter-fit-audit)
-   - [4.4 Screen 3: Concurrent Multi-Source Crawling Engine](#44-screen-3-concurrent-multi-source-crawling-engine)
-   - [4.5 Screen 4: Opportunity Dashboard & The 4 Agentic Power Tools](#45-screen-4-opportunity-dashboard--the-4-agentic-power-tools)
+   - [4.2 Screen 1: Candidate Intake, CV Personas, GitHub Inspector & Deal-Breakers](#42-screen-1-candidate-intake-cv-personas-github-inspector--deal-breakers)
+   - [4.3 Screen 2: Profile Calibration, 3-Tier Competencies & Code-Verified Archetype](#43-screen-2-profile-calibration-3-tier-competencies--code-verified-archetype)
+   - [4.4 Screen 3: Multi-Source Crawling, Fuzzy Deduplication & Empirical Callback Odds](#44-screen-3-multi-source-crawling-fuzzy-deduplication--empirical-callback-odds)
+   - [4.5 Screen 4: Opportunity Dashboard & Agentic Power Tools (Bundles, Heatmap, Mock Interview)](#45-screen-4-opportunity-dashboard--agentic-power-tools-bundles-heatmap-mock-interview)
    - [4.6 Screen 5: Application Pipeline & Kanban Lifecycle Tracker](#46-screen-5-application-pipeline--kanban-lifecycle-tracker)
 5. [💾 Artifact Exports Summary & ATS Parser Compliance](#-artifact-exports-summary--ats-parser-compliance)
    - [5.1 Document Formats Matrix](#51-document-formats-matrix)
@@ -379,13 +379,15 @@ Screen 0 is the multi-candidate management portal and LinkedIn optimization cent
 
 ---
 
-### 4.2 Screen 1: Candidate Intake, CV Parsing & Search Criteria
+### 4.2 Screen 1: Candidate Intake, CV Personas, GitHub Inspector & Deal-Breakers
 
-Screen 1 collects candidate career data and search parameters.
+Screen 1 collects candidate career data, allows managing multi-angle CV personas, inspects public GitHub repositories, and configures hard deal-breaker filters.
 
 ```
 +---------------------------------------------------------------------------------------+
 |  📝 Screen 1: Candidate Input Form & Resume Upload                                    |
++---------------------------------------------------------------------------------------+
+|  🎭 Active Target Persona (P1-B): [ Primary Focus ▼ ]  ➕ Add New: [ Lead Architect ]  |
 +---------------------------------------------------------------------------------------+
 |  [ 📂 Upload Resume File (.pdf, .docx, .txt) ]   [ ✍️ Paste Text / Sample Resume ]    |
 |  -----------------------------------------------------------------------------------  |
@@ -402,36 +404,40 @@ Screen 1 collects candidate career data and search parameters.
 |  Skills Focus:   [ [Agentic AI] [Python] [FastAPI] [Docker] [Postgres]  ]             |
 |  Dream Employers:[ Linear, Stripe, Databricks, Figma                    ] (Optional)  |
 |  Negative Words: [ Clearance, Crypto, Staffing Agency, Unpaid           ] (Optional)  |
+|  🐙 GitHub URL:  [ github.com/alex-mercer                               ] (Optional)  |
+|  ⚡ Deal-Breakers:[✓] Require Visa  [✓] Strict Remote  [✓] Strict Salary Floor         |
 +---------------------------------------------------------------------------------------+
 |  [ 🤖 Parse Resume with Agent & Review Profile → ]                                    |
 +---------------------------------------------------------------------------------------+
 ```
 
-#### Detailed Input Controls:
+#### Detailed Input Controls & New Agentic Features:
+- **🎭 Multi-CV Persona Management (Feature P1-B)**:
+  - Candidates often target distinct positioning angles (e.g. *Individual Contributor Staff AI Architect* vs. *Director of Engineering* vs. *Data Platform Lead*).
+  - Candidates can create, switch, and maintain multiple personas per workspace. Switching immediately updates search queries, competencies, and resume versions dynamically.
+- **🐙 Public GitHub Deep Inspector (Feature P1-A)**:
+  - Enter your public GitHub profile URL or handle (e.g. `github.com/username` or `@username`).
+  - Hyrd's read-only inspector queries public repositories, top starred projects, primary languages (byte ratios), and framework topics.
+  - Automatically synthesizes a **Developer Archetype Summary** and injects **Code-Verified** badges onto proven competencies.
+- **⚡ Configurable Hard Deal-Breakers Engine (Feature P2-A)**:
+  - **Require Visa Sponsorship**: Automatically eliminates requisitions explicitly demanding citizenship or stating "No Visa Sponsorship / C2C only".
+  - **Strict Work Mode Only**: If configured as *Remote Only*, strictly purges hybrid or physical on-site roles even if title match is high.
+  - **Strict Salary Floor**: Disqualifies postings with stated compensation ranges falling strictly below your required threshold.
+  - **Negative Keywords**: Comma-separated exclusion terms (e.g. `Clearance, Crypto, Staffing Agency, Unpaid`) automatically purged from ingestion.
 - **Resume Ingestion (Dual Tabs)**:
-  - **Upload File**: Upload `.pdf`, `.docx`, or `.txt`. Extracted immediately with text stream sanitation.
-  - **Paste Text / Sample Loader**: Paste text manually, or click **"✨ Load Sample Resume"** to populate the complete profile of Alex Mercer (Senior AI Systems Engineer).
-- **Auto-Fill Extraction (`ProfileAgent`)**:
-  - Instantly parses candidate name, experience tenure, core competencies, and recommended search queries.
-- **Target Role Dropdown**:
-  - Curated dropdown of recommended target roles synthesized from your background.
-  - Includes a dedicated manual option: `"✍️ Enter custom target role manually"`. When filled in the custom box, the manual role is strictly prioritized across all search engines.
+  - **Upload File**: Upload `.pdf`, `.docx`, or `.txt`. Extracted immediately with stream sanitization.
+  - **Paste Text / Sample Loader**: Paste text manually, or click **"✨ Load Sample Resume"** to populate the complete profile of Alex Mercer.
+- **Target Role Selection**:
+  - Curated dropdown of recommended target roles synthesized by `ProfileAgent`.
+  - Manual entry override: `"✍️ Enter custom target role manually"` strictly prioritizes your custom title across search feeds.
 - **Target Location & Countries (Mandatory)**:
-  - Candidates must specify target countries (e.g. `Germany, UK, United States, Remote`). All hybrid and on-site opportunities are strictly validated against these country names and ISO synonyms.
-- **Work Mode Preference**:
-  - `Remote Only`: Strictly matches remote requisitions.
-  - `Hybrid Preferred`: Matches remote and hybrid roles located in target countries.
-  - `Open to On-site`: Matches remote, hybrid, and physical on-site roles in target countries.
-- **Dream Target Companies (Optional)**:
-  - Enter priority organizations (e.g., `Stripe, Databricks, Figma`). The crawler directly targets their official Ashby, Greenhouse, Lever, and SmartRecruiters API feeds.
-- **Negative Keywords / Anti-Filters (Optional)**:
-  - Comma-separated exclusion terms (e.g., `Clearance, Crypto, C2C, Unpaid`). Any job containing these words in the title, company name, or description is automatically purged.
+  - Specify target countries (e.g. `Germany, UK, United States, Remote`). Hybrid and on-site opportunities are strictly validated against these country names and ISO synonyms.
 
 ---
 
-### 4.3 Screen 2: Profile Calibration & Recruiter Fit Audit
+### 4.3 Screen 2: Profile Calibration, 3-Tier Competencies & Code-Verified Archetype
 
-Screen 2 displays the structured profile extracted by `ProfileAgent` and allows candidates to calibrate their search before crawling begins.
+Screen 2 displays the structured profile extracted by `ProfileAgent` and allows candidates to calibrate their search, inspect hierarchical competency tiers, review GitHub-verified skills, and examine recruiter fit audits before crawling begins.
 
 ```
 +---------------------------------------------------------------------------------------+
@@ -441,8 +447,15 @@ Screen 2 displays the structured profile extracted by `ProfileAgent` and allows 
 |  Accomplished AI Systems Architect with 7+ years orchestrating production multi-agent  |
 |  workflows, LLM fine-tuning pipelines, and high-throughput vector search services.   |
 |  -----------------------------------------------------------------------------------  |
-|  Extracted Core Skills:                                                               |
-|  [✓ Python] [✓ Gemini API] [✓ LangChain] [✓ FastAPI] [✓ Docker] [✓ Kubernetes]        |
+|  🐙 GitHub Code-Verified Archetype (Feature P1-A):                                    |
+|  Archetype: Distributed AI & High-Throughput Agentic Systems Architect                |
+|  Top Repos: alex-mercer/agentic-rag (⭐ 340) • alex-mercer/fast-inference (⭐ 120)     |
+|  Verified Stack: Python (68%), TypeScript (22%), Rust (10%)                           |
+|  -----------------------------------------------------------------------------------  |
+|  HIERARCHICAL COMPETENCY TAXONOMY (Feature P1-C):                                     |
+|  🟢 Tier 1 (Core Drivers):      [Python ✓] [Agentic AI ✓] [FastAPI ✓] [PyTorch ✓]     |
+|  🔵 Tier 2 (Supporting Stack):  [Docker ✓] [Kubernetes ✓] [PostgreSQL ✓] [LangChain ✓]|
+|  🟡 Tier 3 (Familiar/Emerging):  [Redis ✓] [GraphQL ✓] [Kafka ✓] [CI/CD ✓]             |
 +---------------------------------------------------------------------------------------+
 |  RECOMMENDED TARGET ROLES & RECRUITER ALIGNMENT                                       |
 |  Select roles to include in crawler fan-out:                                          |
@@ -460,25 +473,34 @@ Screen 2 displays the structured profile extracted by `ProfileAgent` and allows 
 +---------------------------------------------------------------------------------------+
 ```
 
-#### Recruiter Fit Analysis Dialog (`show_recruiter_analysis_dialog`):
-Clicking **"🔍 View Recruiter Fit Analysis"** opens a modal containing:
-- **Match Score & Tier Pill Badge**:
-  - `🎯 90–100%`: **Exceptional Fit** (Green `#ecfdf5` / `#047857`)
-  - `🎯 75–89%`: **Strong Match** (Blue `#eff6ff` / `#1d4ed8`)
-  - `🎯 60–74%`: **High Potential** (Amber `#fffbeb` / `#b45309`)
-  - `🎯 < 60%`: **Moderate Alignment** (Gray `#f1f5f9` / `#475569`)
-- **Executive Recruiter Rationale**: Analysis explaining how a senior hiring manager views the candidate's trajectory.
-- **Leveling & Seniority Assessment**: Calibration of title level vs. market expectations.
-- **"What's Missing to Achieve a 100% Match?"**:
-  - High-impact missing skills and tool keywords to incorporate.
-  - Recommended industry certifications.
-  - Strategic resume bullet point enhancements.
+#### Key Calibration Features:
+1. **🐙 GitHub Code-Verified Archetype (Feature P1-A)**:
+   - When a public GitHub profile is provided in Screen 1, `github_inspector.py` queries public repositories and synthesizes an empirical **Developer Archetype**.
+   - Verified competencies receive a **Code-Verified** badge, demonstrating real-world coding capability beyond resume claims.
+2. **🧬 3-Tier Hierarchical Competency Taxonomy (Feature P1-C)**:
+   - Rather than an unsorted flat list of keywords, `ProfileAgent` classifies extracted skills into a 3-tier taxonomy:
+     - **🟢 Tier 1: Core Drivers**: Primary architecture pillars and daily production languages (weighted highest during job matching).
+     - **🔵 Tier 2: Supporting Stack**: Complementary libraries, cloud frameworks, and databases.
+     - **🟡 Tier 3: Familiar & Emerging**: Secondary tools, adjacent utilities, and technologies in active learning.
+3. **Recruiter Fit Analysis Dialog (`show_recruiter_analysis_dialog`)**:
+   Clicking **"🔍 View Recruiter Fit Analysis"** opens a modal containing:
+   - **Match Score & Tier Pill Badge**:
+     - `🎯 90–100%`: **Exceptional Fit** (Green `#ecfdf5` / `#047857`)
+     - `🎯 75–89%`: **Strong Match** (Blue `#eff6ff` / `#1d4ed8`)
+     - `🎯 60–74%`: **High Potential** (Amber `#fffbeb` / `#b45309`)
+     - `🎯 < 60%`: **Moderate Alignment** (Gray `#f1f5f9` / `#475569`)
+   - **Executive Recruiter Rationale**: Analysis explaining how a senior hiring manager views the candidate's trajectory.
+   - **Leveling & Seniority Assessment**: Calibration of title level vs. market expectations.
+   - **"What's Missing to Achieve a 100% Match?"**:
+     - High-impact missing skills and tool keywords to incorporate.
+     - Recommended industry certifications.
+     - Strategic resume bullet point enhancements.
 
 ---
 
-### 4.4 Screen 3: Concurrent Multi-Source Crawling Engine
+### 4.4 Screen 3: Multi-Source Crawling, Fuzzy Deduplication & Empirical Callback Odds
 
-Screen 3 launches the autonomous crawling engine and provides a live, streaming telemetry console.
+Screen 3 launches the autonomous crawling engine, executes cross-source fuzzy deduplication, and provides a live, streaming telemetry console while the Bayesian callback model computes real-world interview probabilities.
 
 ```
 +---------------------------------------------------------------------------------------+
@@ -493,8 +515,9 @@ Screen 3 launches the autonomous crawling engine and provides a live, streaming 
 |  [14:22:04] [GreenhouseScraper] Ingested 38 direct ATS postings                       |
 |  [14:22:05] [JobSpyScraper] Ingested 45 Indeed & Google Jobs positions                |
 |  [14:22:07] [ITJobsScraper] Querying Portuguese regional tech portal... 18 matches    |
-|  [14:22:09] [MatchAgent] Executing Gatekeeper Filter: 12 jobs filtered (geo/negative)  |
-|  [14:22:12] [MatchAgent] Calculating Decoupled Dual Scores (Capability vs Callback)   |
+|  [14:22:08] [Deduplicator] Clustered 143 raw postings into 94 canonical unique jobs    |
+|  [14:22:09] [MatchAgent] Executing Gatekeeper Deal-Breakers: 12 filtered (geo/visa)   |
+|  [14:22:12] [MatchAgent] Calculating Bayesian Callback Likelihood & Intrinsic Scores   |
 |  [14:22:15] [MatchAgent] Executing Pass-2 Gemini Flash semantic reranking...          |
 +---------------------------------------------------------------------------------------+
 ```
@@ -518,17 +541,34 @@ Screen 3 launches the autonomous crawling engine and provides a live, streaming 
 16. **Remotive**: Verified remote tech positions.
 17. **Apify Actors (Cloud LinkedIn/Indeed)**: High-volume fallback scraper.
 
-#### Decoupled Dual Scoring & The Strategic Decision Matrix:
-Unlike simplistic tools that produce a single arbitrary score, Hyrd separates matching into two orthogonal dimensions:
+#### 🔄 Cross-Source Fuzzy Deduplication Engine (Feature P2-B):
+When querying across 17 distinct feeds, aggregators frequently list identical postings with slight variations in titles (e.g. *"Staff AI Engineer - LLM Platform"* vs. *"Staff AI Engineer (Remote - US)"*), differing corporate entity names (e.g. *"Linear Inc."* vs. *"Linear Orbit"*), and varied timestamps.
+- **Normalization Pipeline** ([`src/utils/job_deduplicator.py`](file:///c:/Users/david/OneDrive/Desktop/job_search_app_hyrd/src/utils/job_deduplicator.py)):
+  - Strips corporate legal suffixes (`Inc.`, `LLC`, `Ltd`, `GmbH`, `Corp`).
+  - Evaluates job title token set overlap ($\ge 85\%$ threshold) to catch minor title variations.
+  - Compares location proximity and remote eligibility flags.
+- **Canonical Merging**:
+  - Automatically merges duplicate listings into a single canonical record.
+  - Aggregates direct application URLs across channels, strictly prioritizing direct ATS links (Ashby, Greenhouse) over third-party aggregators.
+  - Tracks earliest discovered timestamp to calculate true posting age.
 
-1. **Intrinsic Profile Fit Score ($S_{\text{fit}}$)**:
-   Measures candidate capability match (0–100%) based on must-have skills, role leveling, and domain experience.
-2. **Interview Callback Likelihood ($P_{\text{callback}}$)**:
-   Computes the real-world statistical probability (0–100%) that an application will trigger an interview, adjusted by:
-   - **Temporal Decay ($\lambda$)**: Rapid decay as jobs age beyond 7, 14, and 30 days.
-   - **Channel Multiplier ($\omega$)**: High advantage for Direct ATS (Ashby/Greenhouse = 1.3x) vs. saturated aggregators (0.8x).
-   - **Gatekeeper Multiplier ($\Phi$)**: Binary drop to 0% if citizenship, visa, or country requirements fail.
-   - **Must-Have Skill Friction ($\Psi$)**: Screening penalty for missing core technical prerequisites.
+#### 📊 Empirical Bayesian Recruiter Callback Model (Feature P2-C):
+Unlike simplistic tools that produce an arbitrary score, Hyrd separates matching into two orthogonal dimensions:
+1. **Intrinsic Capability Fit ($S_{\text{fit}}$)**: Candidate technical and domain overlap ($0–100\%$).
+2. **Empirical Bayesian Callback Likelihood ($P_{\text{callback}}$)**: The mathematically grounded probability that an application will receive a recruiter interview callback.
+
+Implemented in [`src/agents/matching/callback_model.py`](file:///c:/Users/david/OneDrive/Desktop/job_search_app_hyrd/src/agents/matching/callback_model.py), the model computes posterior odds from empirical evidence:
+
+$$\text{Odds}_{\text{posterior}} = \text{Odds}_{\text{prior}} \times \prod_{i} LR_i$$
+
+$$P(\text{Callback}) = \frac{\text{Odds}_{\text{posterior}}}{1 + \text{Odds}_{\text{posterior}}}$$
+
+- **Prior Baseline Odds ($\text{Odds}_{\text{prior}}$)**: Calibrated to empirical tech recruitment industry averages for cold applications ($P_0 \approx 5\%$, base odds $\frac{0.05}{0.95} \approx 0.0526$).
+- **Likelihood Ratios ($LR_i$)**:
+  - **Capability Tier Factor ($LR_{\text{fit}}$)**: $2.5\times$ for Exceptional Fit ($\ge 90\%$), $1.8\times$ for Strong Match ($80–89\%$), $0.4\times$ for Low Fit ($<60\%$).
+  - **Source Channel Authority ($LR_{\text{channel}}$)**: $1.35\times$ for direct employer ATS feeds (Ashby, Greenhouse, Lever); $0.85\times$ for saturated third-party scrapers.
+  - **Posting Velocity Decay ($LR_{\text{velocity}}$)**: Exponential posting age decay $\exp(-\lambda \cdot \text{days})$: postings $<48$ hours old receive a $1.25\times$ velocity boost; postings $>30$ days decay sharply ($0.45\times$).
+  - **Deal-Breaker Disqualification ($LR_{\text{gatekeeper}}$)**: If strict visa, location, or salary deal-breakers fail, odds drop immediately to $0.0\%$.
 
 ```
        HIGH FIT (>=80%)
@@ -546,7 +586,7 @@ Unlike simplistic tools that produce a single arbitrary score, Hyrd separates ma
 
 ---
 
-### 4.5 Screen 4: Opportunity Dashboard & The 4 Agentic Power Tools
+### 4.5 Screen 4: Opportunity Dashboard & Agentic Power Tools (Bundles, Heatmap, Mock Interview)
 
 Screen 4 displays all ranked opportunities inside interactive cards equipped with salary benchmarks, tech alignment matrices, and one-click agentic action tools.
 
@@ -577,17 +617,22 @@ Screen 4 displays all ranked opportunities inside interactive cards equipped wit
 |    • Candidate covers 100% of must-have infrastructure skills.                        |
 |                                                                                       |
 |  [ 📄 Tailored CV ] [ ✉️ Cover Letter ] [ 🎯 Interview Prep ] [ 📨 Cold Outreach ]     |
-|  [ 🏢 Company Dossier ] [ 📌 Save to Pipeline ] [ ↗️ Apply on Company Site ]         |
+|  [ 🏢 Company Dossier ] [ 📦 Bundle (.zip) ] [ 📌 Save ] [ ↗️ Apply on Company Site ] |
 +---------------------------------------------------------------------------------------+
 ```
 
-#### The 4 Agentic Power Tools (Modal Dialogs):
+#### The Agentic Power Tools (Modal Dialogs):
 
 1. **📄 ATS-Optimized Tailored CV (`show_cv_dialog`)**:
    - Re-synthesizes the candidate's resume specifically for this requisition.
    - Highlights overlapping technical competencies and weaves job keywords into bullet points.
    - **Language Toggle**: Generate in **English (`en`)** or **European Portuguese (`pt-pt`)**.
    - **Tone Selector**: Executive, Technical, or Impact-Focused.
+   - **🔥 Visual ATS Keyword Match Heatmap Inspector (Feature P3-B)**:
+     - Embedded directly into the CV modal via `show_ats_heatmap_dialog`.
+     - Visual coverage percentage progress bar (e.g., `88% ATS Coverage`).
+     - Real-time chip breakdown of **Matched Keywords (🟢)** vs. **Missing High-Priority Terms (🔴)**.
+     - Contextual recommendations showing exactly where and how to integrate missing terminology without robotic keyword stuffing.
    - **Downloads**: One-click download as **Microsoft Word (`.docx`)** or **Standard PDF (`.pdf`)**.
 2. **✉️ Bespoke Cover Letter (`show_cover_letter_dialog`)**:
    - Generates a compelling, 3-paragraph executive narrative:
@@ -595,11 +640,16 @@ Screen 4 displays all ranked opportunities inside interactive cards equipped wit
      - *Paragraph 2*: Direct proof points solving the team's specific challenges.
      - *Paragraph 3*: Confident, professional call to action.
    - **Downloads**: Download as **Word (`.docx`)** or **Plain Text (`.txt`)**.
-3. **🎯 Interview Prep Battlecard (`show_interview_prep_dialog`)**:
+3. **🎯 Interview Prep Battlecard & Interactive Mock Simulator (`show_interview_prep_dialog`)**:
    - Compiles a complete technical and behavioral interview preparation package:
      - 5 Role-Specific Architecture & Coding Questions with model answers.
      - 3 Behavioral Questions mapped to the **STAR Method** (Situation, Task, Action, Result).
      - Strategic Questions for the candidate to ask the hiring team to demonstrate domain mastery.
+   - **🎯 Interactive Mock Interview Practice Simulator (Feature P3-C)**:
+     - Accessible via the **"🎯 Mock Practice"** tab inside the dialog.
+     - Select any question, type or paste your practice response, and submit for instant AI evaluation.
+     - Provides instant scores across 4 dimensions: **Overall Readiness (0–100%)**, **STAR Method Structure**, **Technical Precision**, and **Quantified Impact (Metrics Recognition)**.
+     - Offers concrete coaching feedback and a polished alternative phrasing.
 4. **📨 Cold Outreach Drafter (`show_outreach_dialog`)**:
    - Drafts targeted, high-conversion networking messages:
      - **LinkedIn InMail**: Under 100 words, optimized for executive response.
@@ -608,6 +658,13 @@ Screen 4 displays all ranked opportunities inside interactive cards equipped wit
 5. **🏢 Company Intelligence Dossier (`show_company_dossier_dialog`)**:
    - Synthesizes company business model, recent funding, leadership announcements, and engineering culture insights.
    - **Multi-Format Document Export**: Provides instant in-memory export buttons for styled **`.docx`** (Microsoft Word) and **`.pdf`** (Adobe PDF) executive dossiers alongside raw **`.json`** data.
+6. **📦 1-Click Application Bundle (.zip) Exporter (`show_application_bundle_dialog` - Feature P3-A)**:
+   - Packages every customized artifact for a specific opportunity into a single, structured ZIP archive generated entirely in-memory:
+     - `Resume_[Company]_[Title].docx` & `.pdf`
+     - `Cover_Letter_[Company]_[Title].docx` & `.txt`
+     - `Interview_Prep_[Company]_[Title].docx` & `.txt`
+     - `Company_Dossier_[Company].docx` & `.pdf`
+     - `manifest.json` (Structured JSON containing job metadata, callback probability, fit score, and generation timestamp)
 
 ---
 
@@ -663,10 +720,11 @@ Screen 5 is the candidate's personal CRM for tracking every application from ini
 | :--- | :---: | :---: | :--- |
 | **Tailored ATS Resume** | **`.docx`**, **`.pdf`** | `DocAgent` / `document_exporter` | Direct ATS portal submissions (Workday, Greenhouse, Lever, Ashby). |
 | **Bespoke Cover Letter** | **`.docx`**, **`.txt`** | `DocAgent` / `document_exporter` | Application cover letter uploads or email attachments. |
-| **Interview Prep Battlecard** | **`.txt`**, Markdown | `DocAgent` / `interview_prep_agent` | Personal candidate study notes, mobile review. |
+| **Interview Prep Battlecard** | **`.docx`**, **`.txt`**, Markdown | `DocAgent` / `document_exporter` | Personal candidate study notes, mobile review. |
 | **Cold Outreach Messages** | **`.txt`**, Clipboard | `DocAgent` / `outreach_agent` | LinkedIn InMail, cold email client. |
 | **Morning Scout Digest** | Markdown, In-App | `ReportAgent` / `job_scout_agent` | Daily candidate executive briefing. |
 | **Company Intelligence Dossier** | **`.docx`**, **`.pdf`**, **`.json`** | `DocAgent` / `dossier_exporter` | Candidate interview binder, executive company briefing, offline research. |
+| **Complete Application Bundle** | **`.zip`** (all docs + manifest) | `DocAgent` / `bundle_exporter` | 1-Click comprehensive application packet for immediate multi-doc submission. |
 | **Complete Workspace State** | **`.json`** | `user_manager.export_workspace` | Local backup, offline archiving, migration. |
 
 ---

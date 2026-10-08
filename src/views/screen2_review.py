@@ -9,6 +9,7 @@ import streamlit as st
 from src.state import SCREEN_INPUT, SCREEN_SEARCHING, go_to_screen
 from src.mock_data import SAMPLE_PARSED_PROFILE
 from src.agents.matching.scoring import evaluate_role_match
+from src.agents.profile_agent import categorize_competencies
 
 
 @st.dialog("📋 Recruiter Role Fit Analysis", width="medium")
@@ -176,6 +177,9 @@ def render_screen2() -> None:
                 contact_info.append(f"✉️ {email}")
             if phone:
                 contact_info.append(f"📞 {phone}")
+            gh_link = st.session_state.get("github_url") or profile.get("github_url")
+            if gh_link:
+                contact_info.append(f"🐙 {gh_link}")
 
             st.markdown(
                 f"<div style='font-size: 0.88rem; color: #64748b; margin-top: 0.25rem;'>"
@@ -193,6 +197,18 @@ def render_screen2() -> None:
         st.divider()
         st.markdown("**Executive Summary**")
         st.write(profile.get("summary", "Technical professional with deep engineering expertise."))
+
+        # Feature P1-A: GitHub Code-Verified Archetype
+        gh_summary = st.session_state.get("github_summary") or profile.get("github_summary")
+        if gh_summary:
+            st.markdown(
+                f"""
+                <div style="background: #f0fdf4; border-left: 3px solid #166534; padding: 0.6rem 0.85rem; margin-top: 0.65rem; border-radius: 0 6px 6px 0; font-size: 0.86rem; color: #166534;">
+                    <strong>🐙 Code-Verified Engineering Archetype (P1-A):</strong> {gh_summary}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     col1, col2 = st.columns(2, gap="large")
 
@@ -250,17 +266,46 @@ def render_screen2() -> None:
 
         st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
-        st.markdown("#### 🛠️ Core Competencies & Skills")
+        # Feature P1-C: Hierarchical Competency Graph & Proficiency Taxonomy
+        st.markdown("#### 🛠️ Core Competencies & Proficiency Taxonomy (P1-C)")
         skills = st.session_state.get("primary_skills") or profile.get("core_skills", [])
-        if skills:
-            skills_html = "".join(
-                [
-                    f"<span style='display: inline-block; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; "
-                    f"padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; margin: 0.2rem 0.3rem 0.2rem 0;'>"
-                    f"{skill}</span>"
-                    for skill in skills
-                ]
-            )
+        tiers = st.session_state.get("competency_tiers") or profile.get("competency_tiers")
+        if not tiers and skills:
+            tiers = categorize_competencies(skills)
+
+        if tiers:
+            t1 = tiers.get("tier_1_core", [])
+            t2 = tiers.get("tier_2_supporting", [])
+            t3 = tiers.get("tier_3_familiar", [])
+
+            if t1:
+                st.markdown("<div style='font-size: 0.82rem; font-weight: 700; color: #166534; margin-top: 4px;'>🟢 Tier 1: Core Drivers (Primary Stack)</div>", unsafe_allow_html=True)
+                t1_html = "".join([
+                    f"<span style='display: inline-block; background: #dcfce7; color: #15803d; border: 1px solid #86efac; padding: 0.2rem 0.55rem; border-radius: 6px; font-size: 0.82rem; font-weight: 600; margin: 0.15rem 0.25rem 0.15rem 0;'>✓ {s}</span>"
+                    for s in t1
+                ])
+                st.markdown(f"<div style='margin-bottom: 0.5rem;'>{t1_html}</div>", unsafe_allow_html=True)
+
+            if t2:
+                st.markdown("<div style='font-size: 0.82rem; font-weight: 700; color: #1e40af; margin-top: 4px;'>🔵 Tier 2: Supporting Stack (Frameworks & Infra)</div>", unsafe_allow_html=True)
+                t2_html = "".join([
+                    f"<span style='display: inline-block; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 0.2rem 0.55rem; border-radius: 6px; font-size: 0.82rem; font-weight: 500; margin: 0.15rem 0.25rem 0.15rem 0;'>{s}</span>"
+                    for s in t2
+                ])
+                st.markdown(f"<div style='margin-bottom: 0.5rem;'>{t2_html}</div>", unsafe_allow_html=True)
+
+            if t3:
+                st.markdown("<div style='font-size: 0.82rem; font-weight: 700; color: #854d0e; margin-top: 4px;'>🟡 Tier 3: Familiar & Emerging (Tools & APIs)</div>", unsafe_allow_html=True)
+                t3_html = "".join([
+                    f"<span style='display: inline-block; background: #fefce8; color: #854d0e; border: 1px solid #fde047; padding: 0.2rem 0.55rem; border-radius: 6px; font-size: 0.82rem; font-weight: 500; margin: 0.15rem 0.25rem 0.15rem 0;'>{s}</span>"
+                    for s in t3
+                ])
+                st.markdown(f"<div style='margin-bottom: 0.5rem;'>{t3_html}</div>", unsafe_allow_html=True)
+        elif skills:
+            skills_html = "".join([
+                f"<span style='display: inline-block; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.85rem; font-weight: 500; margin: 0.2rem 0.3rem 0.2rem 0;'>{s}</span>"
+                for s in skills
+            ])
             st.markdown(f"<div style='margin-bottom: 1rem;'>{skills_html}</div>", unsafe_allow_html=True)
         else:
             st.info("No specific skills extracted.")

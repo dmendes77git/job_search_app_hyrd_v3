@@ -6,6 +6,7 @@ from src.agents.application_agent import generate_customized_cv
 from src.utils.document_exporter import create_cv_pdf, create_cv_docx
 from src.utils.ats_optimizer import audit_ats_cv_compatibility, detect_job_language
 from src.utils.user_manager import flush_session_to_user_workspace
+from .ats_heatmap_dialog import show_ats_heatmap_dialog
 
 
 @st.dialog("📄 ATS-Optimized Tailored CV", width="large")
@@ -138,6 +139,10 @@ def show_cv_dialog(job: dict, profile: dict) -> None:
         m2.metric("Keyword Density", f"{audit['keyword_density_pct']}%")
         m3.metric("Matched Keywords", f"{len(audit['matched_keywords'])}")
         m4.metric("Quantified Metrics", f"{audit['metric_count']}")
+
+        st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+        if st.button("🔍 Open Visual Keyword Match Heatmap & Inspector", key=f"btn_open_heatmap_{job_id}", use_container_width=True):
+            show_ats_heatmap_dialog(job, profile, cv_text)
 
         st.markdown("---")
         st.markdown("#### 📋 5-Point ATS Parser Compliance Checklist")

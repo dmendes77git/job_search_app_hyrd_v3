@@ -6,7 +6,16 @@ import streamlit as st
 from src.state import SCREEN_REVIEW, go_to_screen
 from src.mock_data import SAMPLE_RESUME, SAMPLE_PARSED_PROFILE
 from src.utils.file_parser import extract_text_from_file
-from src.utils.user_manager import get_active_user_id, get_user_profile, flush_session_to_user_workspace
+from src.utils.user_manager import (
+    get_active_user_id,
+    get_user_profile,
+    flush_session_to_user_workspace,
+    get_personas,
+    create_or_update_persona,
+    switch_active_persona,
+)
+from src.tools.github_inspector import inspect_github_profile
+from src.agents.profile_agent import categorize_competencies
 from src.agents.resume_parser_agent import (
     EXP_LEVEL_OPTIONS,
     match_experience_level,
@@ -51,6 +60,49 @@ def render_screen1() -> None:
         "The **Gemini 3.8 Flash** Agent will parse your background, extract core competencies, "
         "and synthesize recommended job search criteria."
     )
+
+    # Feature P1-B: Multi-CV Persona Profiles & Profile Fusion
+    personas = get_personas(active_id) if active_id else {}
+    persona_names = list(personas.keys())
+    if not persona_names:
+        persona_names = ["Primary Focus"]
+
+    p_col1, p_col2 = st.columns([2.5, 1.5], vertical_alignment="bottom")
+    with p_col1:
+        curr_active_persona = active_profile.get("active_persona") or persona_names[0]
+        sel_idx = persona_names.index(curr_active_persona) if curr_active_persona in persona_names else 0
+        selected_persona = st.selectbox(
+            "🎭 Active Target Persona (P1-B):",
+            options=persona_names,
+            index=sel_idx,
+            key="persona_selector_screen1",
+            help="Switch between tailored CV personas (e.g. AI Architect vs Engineering Manager).",
+        )
+        if selected_persona != curr_active_persona and selected_persona in personas:
+            switch_active_persona(active_id, selected_persona)
+            st.toast(f"Switched to persona: {selected_persona}")
+            st.rerun()
+
+    with p_col2:
+        new_persona_name = st.text_input(
+            "➕ Add New Persona:",
+            placeholder="e.g. Lead Architect",
+            key="new_persona_input",
+            help="Create a new persona profile to maintain multiple CV angles simultaneously.",
+        )
+        if st.button("Create Persona", key="btn_create_persona", use_container_width=True):
+            if new_persona_name.strip():
+                create_or_update_persona(active_id, new_persona_name.strip(), {
+                    "target_role": st.session_state.get("target_role", "Target Role"),
+                    "target_job_queries": st.session_state.get("target_job_queries", []),
+                    "core_skills": st.session_state.get("primary_skills", []),
+                    "resume_text": st.session_state.get("resume_text", ""),
+                })
+                switch_active_persona(active_id, new_persona_name.strip())
+                st.toast(f"Created & activated persona: {new_persona_name.strip()}")
+                st.rerun()
+
+    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
     # Initialize form version tracker for reactive widget binding
     if "form_version" not in st.session_state:
@@ -310,6 +362,52 @@ def render_screen1() -> None:
                 help="Comma-separated terms to exclude. Any job containing these words in the title, company name, or description will be filtered out automatically.",
             )
 
+        adv_col3, adv_col4 = st.columns(2)
+        with adv_col3:
+            github_input = st.text_input(
+                "🐙 Public GitHub Profile / Handle (Optional - P1-A)",
+                value=st.session_state.get("github_url", ""),
+                key=f"github_input_{fv}",
+                placeholder="e.g. github.com/username or @username",
+                help="Inspects public code repositories to verify programming languages, top starred projects, and generate Code-Verified badges.",
+            )
+        with adv_col4:
+            st.markdown("<div style='height: 1.6rem;'></div>", unsafe_allow_html=True)
+            dealbreakers_active = st.checkbox(
+                "⚡ Enforce Strict Hard Deal-Breakers (P2-A)",
+                value=st.session_state.get("strict_dealbreakers_enabled", True),
+                key=f"dealbreaker_chk_{fv}",
+                help="Strictly disqualifies requisitions violating visa sponsorship, salary floor, or strict work mode.",
+            )
+
+        if dealbreakers_active:
+            db_c1, db_c2, db_c3 = st.columns(3)
+            with db_c1:
+                req_visa = st.checkbox(
+                    "Require Visa Sponsorship",
+                    value=st.session_state.get("requires_visa_sponsorship", False),
+                    key=f"req_visa_chk_{fv}",
+                    help="Disqualifies postings explicitly stating 'No Visa Sponsorship / Citizen Only'.",
+                )
+            with db_c2:
+                strict_mode = st.checkbox(
+                    "Strict Work Mode Only",
+                    value=st.session_state.get("strict_work_mode", True),
+                    key=f"strict_mode_chk_{fv}",
+                    help="If Remote Only, strictly excludes On-Site and Hybrid roles.",
+                )
+            with db_c3:
+                strict_salary = st.checkbox(
+                    "Strict Salary Floor",
+                    value=st.session_state.get("strict_salary_floor", False),
+                    key=f"strict_salary_chk_{fv}",
+                    help="Disqualifies postings with stated compensation strictly below your minimum preference.",
+                )
+        else:
+            req_visa = False
+            strict_mode = False
+            strict_salary = False
+
         st.markdown("<br>", unsafe_allow_html=True)
         submit_btn = st.form_submit_button(
             "🤖 Parse Resume with Agent & Review Profile →",
@@ -422,6 +520,51 @@ def render_screen1() -> None:
             if min_salary.strip():
                 parsed_data["preferred_min_salary"] = min_salary.strip()
             parsed_data["work_mode"] = remote_pref
+
+            # Dealbreakers (P2-A)
+            st.session_state.github_url = github_input.strip()
+            st.session_state.strict_dealbreakers_enabled = dealbreakers_active
+            st.session_state.requires_visa_sponsorship = req_visa
+            st.session_state.strict_work_mode = strict_mode
+            st.session_state.strict_salary_floor = strict_salary
+
+            parsed_data["requires_visa_sponsorship"] = req_visa
+            parsed_data["strict_work_mode"] = strict_mode
+            parsed_data["strict_salary_floor"] = strict_salary
+            parsed_data["strict_dealbreakers_enabled"] = dealbreakers_active
+
+            # P1-A: GitHub Deep Inspection
+            if github_input.strip():
+                with st.spinner("🐙 GitHub Deep Inspector inspecting public repositories & verifying competencies..."):
+                    gh_data = inspect_github_profile(github_input.strip())
+                    st.session_state.github_summary = gh_data.get("archetype_summary", "")
+                    st.session_state.github_verified_skills = gh_data.get("verified_competencies", [])
+                    st.session_state.github_top_projects = gh_data.get("top_projects", [])
+                    parsed_data["github_url"] = github_input.strip()
+                    parsed_data["github_summary"] = gh_data.get("archetype_summary", "")
+                    parsed_data["github_verified_skills"] = gh_data.get("verified_competencies", [])
+                    for v_sk in gh_data.get("verified_competencies", []):
+                        if v_sk not in st.session_state.primary_skills:
+                            st.session_state.primary_skills.append(v_sk)
+
+            # P1-C: Hierarchical Competency Graph
+            tiers = categorize_competencies(st.session_state.primary_skills, exp_level)
+            parsed_data["competency_tiers"] = tiers
+            st.session_state.competency_tiers = tiers
+
+            # P1-B: Multi-CV Persona Sync
+            active_persona_key = st.session_state.get("persona_selector_screen1") or "Primary Focus"
+            create_or_update_persona(active_id, active_persona_key, {
+                "target_role": final_role,
+                "target_job_queries": st.session_state.target_job_queries,
+                "core_skills": st.session_state.primary_skills,
+                "resume_text": resume_input,
+                "experience_level": exp_level,
+                "work_mode": remote_pref,
+                "min_salary": min_salary.strip(),
+                "competency_tiers": tiers,
+                "github_url": github_input.strip(),
+            })
 
             flush_session_to_user_workspace()
             go_to_screen(SCREEN_REVIEW)

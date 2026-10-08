@@ -14,6 +14,7 @@ from src.components.application_dialogs import (
     show_cv_dialog,
     show_interview_prep_dialog,
     show_outreach_dialog,
+    show_bundle_dialog,
 )
 from src.components.source_badges import (
     render_freshness_badge,
@@ -369,5 +370,16 @@ def render_job_card(
                 help="Deep-dive employer intelligence: tech stack, funding, leadership, and interview talking points",
             ):
                 show_company_dossier_dialog(job, profile)
+
+            bundle_key = f"bundle_zip_{job_id}"
+            bundle_ready = bundle_key in st.session_state
+            bundle_label = "📦 App Bundle (.zip) ✓" if bundle_ready else "📦 App Bundle (.zip)"
+            if st.button(
+                bundle_label,
+                key=f"btn_bundle_{job_id}",
+                use_container_width=True,
+                help="1-Click Application Bundle: CV, Cover Letter, Prep Pack, Dossier & Outreach in an in-memory ZIP",
+            ):
+                show_bundle_dialog(job, profile)
 
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
